@@ -222,7 +222,7 @@ def calc_dcf():
         wb 
         .sheets('Property Editor')
         .range('A1')
-        .options(pd.DataFrame,index=False, expand='table')
+        .options(pd.DataFrame, index=False, expand='table')
         .value
     )
     prop_list = prop_list.query('INCLUDE == 1')
