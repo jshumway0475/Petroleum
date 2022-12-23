@@ -217,7 +217,7 @@ def npv(disc_rate, ncf, n):
 
 def calc_dcf():
     # Import data for decline parameters
-    wb = xw.Book(r"C:\Users\jshum\OneDrive\Python\Petroleum\Multi Well DCF.xlsm")
+    wb = xw.Book.caller()
     prop_list = (
         wb 
         .sheets('Property Editor')
