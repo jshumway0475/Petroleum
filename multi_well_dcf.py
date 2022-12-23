@@ -140,11 +140,11 @@ def MonthDiff(BaseDate, StartDate):
 
 # function to calculate monthly cash flow output, no economic truncation applied to output
 def monthly_cf(index, uid, wi, nri, weight, prod_wt, inv_wt, shrink, btu, ngl_yield, pri_oil, pri_gas, paj_oil, 
-               paj_gas, paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, opc_gas, capex):
+               paj_gas, paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, opc_gas, capex, volumes):
     # Calculate cash flow components
-    mos = np.extract(vol_np[index][0] == uid, vol_np[index][1])
-    gr_oil = np.extract(vol_np[index][0] == uid, vol_np[index][2])
-    gr_gas = np.extract(vol_np[index][0] == uid, vol_np[index][3])
+    mos = np.extract(volumes[index][0] == uid, volumes[index][1])
+    gr_oil = np.extract(volumes[index][0] == uid, volumes[index][2])
+    gr_gas = np.extract(volumes[index][0] == uid, volumes[index][3])
     oil_sales = gr_oil * nri * weight * prod_wt
     gas_sales = gr_gas * nri * shrink * weight * prod_wt
     ngl_sales = ngl_yield * gr_gas * nri * weight * prod_wt
@@ -165,18 +165,18 @@ def monthly_cf(index, uid, wi, nri, weight, prod_wt, inv_wt, shrink, btu, ngl_yi
     cum_ncf = np.cumsum(net_cf)
 
     # create output array
-    out_full = np.vstack((vol_np[index][:, vol_np[index][0] == uid], oil_sales, gas_sales, ngl_sales, oil_rev, gas_rev, 
+    out_full = np.vstack((volumes[index][:, volumes[index][0] == uid], oil_sales, gas_sales, ngl_sales, oil_rev, gas_rev, 
                           ngl_rev, total_rev, total_tax, opex, op_cf, cum_opcf, net_cf, cum_ncf))
     return out_full
 
 
 # function to calculate monthly cash flow output with economic truncation
 def econ_cf(index, uid, wi, nri, roy, eloss, weight, prod_wt, inv_wt, shrink, btu, ngl_yield, pri_oil, pri_gas, paj_oil, paj_gas,
-            paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, opc_gas, capex, aban):
+            paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, opc_gas, capex, aban, volumes):
     if wi == 0 or nri / wi > (1 - roy):
         life_cf = monthly_cf(index, uid, 1, 1 - roy, weight, prod_wt, inv_wt, shrink, btu, ngl_yield, pri_oil, 
                              pri_gas, paj_oil, paj_gas, paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, 
-                             opc_gas, capex)
+                             opc_gas, capex, volumes)
         try:
             life = np.where(life_cf[14] == np.max(life_cf[14]))[0][0]
         except:
@@ -184,14 +184,14 @@ def econ_cf(index, uid, wi, nri, roy, eloss, weight, prod_wt, inv_wt, shrink, bt
     else:
         life_cf = monthly_cf(index, uid, wi, nri, weight, prod_wt, inv_wt, shrink, btu, ngl_yield, pri_oil, 
                              pri_gas, paj_oil, paj_gas, paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, 
-                             opc_gas, capex)
+                             opc_gas, capex, volumes)
         try:
             life = np.where(life_cf[14] == np.max(life_cf[14]))[0][0]
         except:
             life = 1
     
     result = monthly_cf(index, uid, wi, nri, weight, prod_wt, inv_wt, shrink, btu, ngl_yield, pri_oil, pri_gas, paj_oil, 
-                        paj_gas, paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, opc_gas, capex)
+                        paj_gas, paj_ngl, stx_oil, stx_gas, stx_ngl, adval, opc_fix, opc_oil, opc_gas, capex, volumes)
     
     # add abandonment costs to end of life
     net_cf = np.where(result[1] == life + eloss, result[15] - (aban * weight * inv_wt * wi), result[15])
@@ -222,34 +222,34 @@ def calc_dcf():
         wb 
         .sheets('Property Editor')
         .range('A1')
-        .options(pd.DataFrame, index=False, expand='table')
+        .options(pd.DataFrame,index=False, expand='table')
         .value
     )
     prop_list = prop_list.query('INCLUDE == 1')
     prop_list = prop_list.fillna(0)
     prop_list['Start_Date'] = pd.to_datetime(prop_list['Start_Date'])
     prop_list.reset_index(drop = True, inplace = True)
-    C = prop_list.keys() # Columns
     R = prop_list.index # Rows
-
+    
     # Loop through DataFrame and output monthly oil volumes
     duration = int(wb.sheets('Input Settings').range('B3').value)
 
-    oil = lambda w: arps_segments(prop_list.loc[w, 'PROPNUM'], 1, prop_list.loc[w, 'OIL_IP'], prop_list.loc[w, 'OIL_IP2'], 
-                                prop_list.loc[w, 'OIL_IP3'], prop_list.loc[w, 'OIL_DI'] / 100, prop_list.loc[w, 'Oil_Def'] / 100, 
-                                prop_list.loc[w, 'OIL_B'], prop_list.loc[w, 'OIL_SEG1_TIME'], prop_list.loc[w, 'OIL_SEG2_TIME'], 
-                                duration)
+    oil = lambda w: arps_segments(prop_list.loc[w, 'UID'], 1, prop_list.loc[w, 'OIL_IP'], prop_list.loc[w, 'OIL_IP2'], 
+                                  prop_list.loc[w, 'OIL_IP3'], prop_list.loc[w, 'OIL_DI'] / 100, prop_list.loc[w, 'OIL_DEF'] / 100, 
+                                  prop_list.loc[w, 'OIL_B'], prop_list.loc[w, 'OIL_SEG1_TIME'], prop_list.loc[w, 'OIL_SEG2_TIME'], 
+                                  duration)
     v_oil = np.vectorize(oil, otypes = [object])
     oil_nparr = v_oil(R)
 
     # Loop through DataFrame and output monthly gas volumes
-    gas = lambda w: arps_segments(prop_list.loc[w, 'PROPNUM'], 1, prop_list.loc[w, 'GAS_IP'], prop_list.loc[w, 'GAS_IP2'], 
-                                prop_list.loc[w, 'GAS_IP3'], prop_list.loc[w, 'GAS_DI'] / 100, prop_list.loc[w, 'GAS_Def'] / 100, 
-                                prop_list.loc[w, 'GAS_B'], prop_list.loc[w, 'GAS_SEG1_TIME'], prop_list.loc[w, 'GAS_SEG2_TIME'], 
-                                duration)
+
+    gas = lambda w: arps_segments(prop_list.loc[w, 'UID'], 1, prop_list.loc[w, 'GAS_IP'], prop_list.loc[w, 'GAS_IP2'], 
+                                  prop_list.loc[w, 'GAS_IP3'], prop_list.loc[w, 'GAS_DI'] / 100, prop_list.loc[w, 'GAS_DEF'] / 100, 
+                                  prop_list.loc[w, 'GAS_B'], prop_list.loc[w, 'GAS_SEG1_TIME'], prop_list.loc[w, 'GAS_SEG2_TIME'], 
+                                  duration)
     v_gas = np.vectorize(gas, otypes = [object])
     gas_nparr = v_gas(R)
-
+    
     # Import price files
     BaseDate = np.datetime64(wb.sheets('Input Settings').range('B2').value)
     MaxDate = pd.to_datetime(prop_list['Start_Date']).max()
@@ -261,18 +261,18 @@ def calc_dcf():
     strip_price['Date'] = pd.to_datetime(strip_price['Date'])
 
     # Create diff array
-    pepl_pd = wb.sheets('Pricing Editor').range('F2').options(pd.DataFrame,index=False, expand='table').value
-    pepl_pd['Date'] = pd.to_datetime(pepl_pd['Date'])
+    gasdiff_pd = wb.sheets('Pricing Editor').range('F2').options(pd.DataFrame,index=False, expand='table').value
+    gasdiff_pd['Date'] = pd.to_datetime(gasdiff_pd['Date'])
 
     # Create numpy arrays for cash flow calcs
     strip_price = pd.merge(dates, strip_price, how = 'left', on = 'Date')
-    strip_price = pd.merge(strip_price, pepl_pd, how = 'left', on = 'Date')
+    strip_price = pd.merge(strip_price, gasdiff_pd, how = 'left', on = 'Date')
     strip_price.fillna(method = 'ffill', inplace = True)
     strip_price['PAJ/GAS'].fillna(method = 'bfill', inplace = True)
     oil_price_full = np.transpose(strip_price[['Oil Price']].to_numpy())[0]
     gas_price_full = np.transpose(strip_price[['Gas Price']].to_numpy())[0]
-    pepl_diff_full = np.transpose(strip_price[['PAJ/GAS']].to_numpy())[0]
-
+    gasdiff_full = np.transpose(strip_price[['PAJ/GAS']].to_numpy())[0]
+    
     # Generate price and volume arrays with proper indexing
     def oil_price(x):
         # Create shift integer for arrays
@@ -309,7 +309,7 @@ def calc_dcf():
         
         # Shift price arrays
         uid = np.full((duration + DateDiff,), gas_nparr[x][0][0])
-        pepl = pepl_diff_full[:duration + DateDiff]
+        pepl = gasdiff_full[:duration + DateDiff]
         gas_diff = np.vstack((uid, pepl))
         return gas_diff
 
@@ -331,14 +331,13 @@ def calc_dcf():
         oil_zeros = np.zeros((DateDiff),)
         gas_zeros = oil_zeros
         shift = np.vstack((prop, delay, oil_zeros, gas_zeros))
-        vol_arr = np.column_stack((shift, nvol_np))
-        
+        vol_arr = np.column_stack((shift, nvol_np)) 
         return vol_arr
 
     vvolarray = np.vectorize(volarray, otypes = [object])
     vol_np = vvolarray(R)
-
-    # Generate full monthly cash flow arrays    
+    
+    # Generate full monthly cash flow arrays  
     # define constant input parameters
     eloss = int(wb.sheets('Input Settings').range('B5').value)
     weight = wb.sheets('Input Settings').range('B6').value
@@ -349,7 +348,7 @@ def calc_dcf():
     def econ_ncf_iter(r):    
         econ_ncf_iter = econ_cf(
             index = r,
-            uid = prop_list.loc[r, 'PROPNUM'],
+            uid = prop_list.loc[r, 'UID'],
             wi = prop_list.loc[r, 'WI'],
             nri = prop_list.loc[r, 'NRI'],
             roy = prop_list.loc[r, 'Royalty'],
@@ -360,20 +359,21 @@ def calc_dcf():
             shrink = np.round(prop_list.loc[r, 'SHRINK'] / 100, 6),
             btu = np.round(prop_list.loc[r, 'BTU'] / 1000, 6),
             ngl_yield = np.round(prop_list.loc[r, 'NGL/GAS'], 6),
-            pri_oil = np.extract(oilprice[r][0] == prop_list.loc[r, 'PROPNUM'], oilprice[r][1]),
-            pri_gas = np.extract(gasprice[r][0] == prop_list.loc[r, 'PROPNUM'], gasprice[r][1]),
-            paj_oil = prop_list.loc[r, 'PAJ_OIL'],
-            paj_gas = np.extract(gasdiff[r][0] == prop_list.loc[r, 'PROPNUM'], gasdiff[r][1]),
-            paj_ngl = prop_list.loc[r, 'PAJ_NGL'],
+            pri_oil = np.extract(oilprice[r][0] == prop_list.loc[r, 'UID'], oilprice[r][1]),
+            pri_gas = np.extract(gasprice[r][0] == prop_list.loc[r, 'UID'], gasprice[r][1]),
+            paj_oil = prop_list.loc[r, 'PAJ/OIL'],
+            paj_gas = np.extract(gasdiff[r][0] == prop_list.loc[r, 'UID'], gasdiff[r][1]),
+            paj_ngl = prop_list.loc[r, 'PAJ/NGL'],
             stx_oil = prop_list.loc[r, 'STX/OIL'],
             stx_gas = prop_list.loc[r, 'STX/GAS'],
             stx_ngl = prop_list.loc[r, 'STX/NGL'],
             adval = prop_list.loc[r, 'ADVAL'],
             opc_fix = np.round(prop_list.loc[r, 'OPC/T'], 2),
-            opc_oil = np.round(prop_list.loc[r, 'OIL_OPEX'], 2),
-            opc_gas = np.round(prop_list.loc[r, 'GAS_OPEX'], 2),
+            opc_oil = np.round(prop_list.loc[r, 'OPC/OIL'], 2),
+            opc_gas = np.round(prop_list.loc[r, 'OPC/GAS'], 2),
             capex = np.round(prop_list.loc[r, 'CAPITAL'] * 1000, 2),
-            aban = np.round(prop_list.loc[r, 'ABAN'] * 1000, 2)
+            aban = np.round(prop_list.loc[r, 'ABAN'] * 1000, 2),
+            volumes = vol_np
         )
         return econ_ncf_iter
 
@@ -383,14 +383,14 @@ def calc_dcf():
     ncf_arr_packed = vecon_ncf(R)
     ncf_pd_dflist = []
     columns = ['UID', 'Month', 'Grs Oil', 'Grs Gas', 'Net Oil', 'Net Gas', 'Net NGL', 'Oil Revenue', 'Gas Revenue', 
-            'NGL Revenue', 'Total Revenue', 'Total Tax', 'OPEX', 'Operating Income', 'Cumulative Op CF', 'Net Cashflow',
-            'Cumulative Net CF']
+               'NGL Revenue', 'Total Revenue', 'Total Tax', 'OPEX', 'Operating Income', 'Cumulative Op CF', 'Net Cashflow',
+               'Cumulative Net CF']
 
     for r in R:
         ncf_pd_dflist.append(pd.DataFrame(np.transpose(ncf_arr_packed[r])))
     ncf_pd = pd.concat(ncf_pd_dflist)
     ncf_pd.columns = columns
-
+    
     # Truncate pandas dataframe
     monthly_out = int(wb.sheets('Input Settings').range('B4').value)
     ncf_pd_trunc = ncf_pd.query(f'Month < {monthly_out}')
@@ -410,7 +410,7 @@ def calc_dcf():
     npv_list = []
 
     for r in R:
-        propID = prop_list.loc[r, 'PROPNUM']
+        propID = prop_list.loc[r, 'UID']
         wi = prop_list.loc[r, 'WI']
         capex = prop_list.loc[r, 'CAPITAL']
         ncf_r = np.extract(ncf_arr_packed[r][0] == propID, ncf_arr_packed[r][15])
@@ -488,7 +488,7 @@ def calc_dcf():
         def econ_be(pri, paj_gas, disc, equiv_ratio, r):    
             econ_be = econ_cf(
                 index = r,
-                uid = prop_list.loc[r, 'PROPNUM'],
+                uid = prop_list.loc[r, 'UID'],
                 wi = prop_list.loc[r, 'WI'],
                 nri = prop_list.loc[r, 'NRI'],
                 roy = prop_list.loc[r, 'Royalty'],
@@ -501,18 +501,19 @@ def calc_dcf():
                 ngl_yield = np.round(prop_list.loc[r, 'NGL/GAS'], 6),
                 pri_oil = pri,
                 pri_gas = pri / equiv_ratio,
-                paj_oil = prop_list.loc[r, 'PAJ_OIL'],
+                paj_oil = prop_list.loc[r, 'PAJ/OIL'],
                 paj_gas = pajgas,
-                paj_ngl = prop_list.loc[r, 'PAJ_NGL'],
+                paj_ngl = prop_list.loc[r, 'PAJ/NGL'],
                 stx_oil = prop_list.loc[r, 'STX/OIL'],
                 stx_gas = prop_list.loc[r, 'STX/GAS'],
                 stx_ngl = prop_list.loc[r, 'STX/NGL'],
                 adval = prop_list.loc[r, 'ADVAL'],
                 opc_fix = np.round(prop_list.loc[r, 'OPC/T'], 2),
-                opc_oil = np.round(prop_list.loc[r, 'OIL_OPEX'], 2),
-                opc_gas = np.round(prop_list.loc[r, 'GAS_OPEX'], 2),
+                opc_oil = np.round(prop_list.loc[r, 'OPC/OIL'], 2),
+                opc_gas = np.round(prop_list.loc[r, 'OPC/GAS'], 2),
                 capex = np.round(prop_list.loc[r, 'CAPITAL'] * 1000, 2),
-                aban = np.round(prop_list.loc[r, 'ABAN'] * 1000, 2)
+                aban = np.round(prop_list.loc[r, 'ABAN'] * 1000, 2),
+                volumes = vol_np
             )
             pv_beo = npv(disc, econ_be[15], econ_be[1])
             return pv_beo
