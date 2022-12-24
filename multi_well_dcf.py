@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import xlwings as xw
 import scipy.optimize as optimize
-from scipy.interpolate import interp1d
 
 def arps_decline(UID, phase, Qi, Dei, Def, b, t, prior_cum, prior_t):
     # UID is a unique identifier for the well such as API, must be a number
@@ -422,7 +421,7 @@ def calc_dcf():
         ncf_r = np.extract(ncf_arr_packed[r][0] == propID, ncf_arr_packed[r][15])
         month_r = np.extract(ncf_arr_packed[r][0] == propID, ncf_arr_packed[r][1])
         cum_ocf_r = np.extract(ncf_arr_packed[r][0] == propID, ncf_arr_packed[r][14])
-        cum_ncf_r = np.extract(ncf_arr_packed[r][0] == propID, ncf_arr_packed[r][14])
+        cum_ncf_r = np.extract(ncf_arr_packed[r][0] == propID, ncf_arr_packed[r][16])
         
         # calculate npv at all discount rates
         pv_calc = lambda i: npv(i, ncf_r, month_r.astype(int))
@@ -440,7 +439,7 @@ def calc_dcf():
         
         # calculate life
         try:
-            life_calc = np.where(cum_ocf_r == np.max(cum_ocf_r))[0][0] + eloss
+            life_calc = np.clip(np.where(cum_ocf_r == np.max(cum_ocf_r))[0][0] + eloss, 0, duration)
         except:
             life_calc = 1 + eloss
         life.append(np.round(life_calc / 12, 2))
@@ -449,8 +448,8 @@ def calc_dcf():
         ncf_cum = cum_ncf_r[:life_calc]
         month_arr = month_r[:life_calc]
         try:
-            payout_interp = interp1d(ncf_cum, month_arr, kind = 'cubic')
-            payout_calc = payout_interp(0) / 12
+            payout_interp = np.interp(0, ncf_cum, month_arr)
+            payout_calc = payout_interp / 12
         except:
             payout_calc = life_calc / 12
         payout.append(np.round(payout_calc, 2))
