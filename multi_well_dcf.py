@@ -390,10 +390,16 @@ def calc_dcf():
         ncf_pd_dflist.append(pd.DataFrame(np.transpose(ncf_arr_packed[r])))
     ncf_pd = pd.concat(ncf_pd_dflist)
     ncf_pd.columns = columns
+
+    # Add a date column and reorder
+    columns.insert(2, 'Date')
+    ncf_pd['Date'] = pd.Timestamp(BaseDate) + ncf_pd['Month'].apply(lambda m: pd.DateOffset(months=m))
+    ncf_pd = ncf_pd[columns]
     
     # Truncate pandas dataframe
     monthly_out = int(wb.sheets('Input Settings').range('B4').value)
     ncf_pd_trunc = ncf_pd.query(f'Month < {monthly_out}')
+    ncf_pd_trunc = ncf_pd_trunc.drop(columns = ['Month'])
     wb.sheets('Monthly Output').range('A1').expand().clear_contents()
     wb.sheets('Monthly Output').range('A1').options(index=False, header=True).value = ncf_pd_trunc
 
@@ -469,8 +475,6 @@ def calc_dcf():
     # Create oneline output export to csv
     result_pd = pd.DataFrame(np.transpose(result_nparr), columns = ['UID', 'IRR', 'Life', 'Payout', 'ROI', 'DROI'])
     result_pd = pd.merge(result_pd, npv_pd, how = 'inner', left_index = True, right_index = True)
-    wb.sheets('Oneline Output').range('A1').expand().clear_contents()
-    wb.sheets('Oneline Output').range('A1').options(index=False, header=True).value = result_pd
 
     # Calculate breakevens and add to pandas output
     equiv_ratio = wb.sheets('Input Settings').range('E3').value
@@ -481,6 +485,8 @@ def calc_dcf():
     run_breakevens = int(wb.sheets('Input Settings').range('E2').value)
 
     if run_breakevens == 0:
+        wb.sheets('Oneline Output').range('A1').expand().clear_contents()
+        wb.sheets('Oneline Output').range('A1').options(index=False, header=True).value = result_pd
         pass
 
     else:
