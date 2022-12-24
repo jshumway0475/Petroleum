@@ -434,7 +434,7 @@ def calc_dcf():
         else:
             f = lambda x: npv(x, ncf_r, month_r)
             r = optimize.root(f, [0])
-            irr = min(r.x[0], 1)
+            irr = np.clip(r.x[0], 0, max(max(disc_rate), 1))
         ror.append(irr)
         
         # calculate life
