@@ -221,18 +221,22 @@ def calc_dcf():
         wb 
         .sheets('Property Editor')
         .range('A1')
-        .options(pd.DataFrame,index=False, expand='table')
+        .options(pd.DataFrame, index=False, expand='table')
         .value
     )
     prop_list = prop_list.query('INCLUDE == 1')
     prop_list = prop_list.fillna(0)
     prop_list['Start_Date'] = pd.to_datetime(prop_list['Start_Date'])
-    prop_list.reset_index(drop = True, inplace = True)
-    R = prop_list.index # Rows
-    
-    # Loop through DataFrame and output monthly oil volumes
+    prop_list.reset_index(drop=True, inplace=True)
+    BaseDate = np.datetime64(wb.sheets('Input Settings').range('B2').value)
+    prop_list['CAPITAL'].mask(prop_list['Start_Date'] < BaseDate, 0, inplace=True)
+    MaxDate = prop_list['Start_Date'].max()
+    add_months = MonthDiff(BaseDate, MaxDate) + 1
     duration = int(wb.sheets('Input Settings').range('B3').value)
+    str_periods = duration + add_months
+    R = prop_list.index # Rows
 
+    # Loop through DataFrame and output monthly oil volumes
     oil = lambda w: arps_segments(prop_list.loc[w, 'UID'], 1, prop_list.loc[w, 'OIL_IP'], prop_list.loc[w, 'OIL_IP2'], 
                                   prop_list.loc[w, 'OIL_IP3'], prop_list.loc[w, 'OIL_DI'] / 100, prop_list.loc[w, 'OIL_DEF'] / 100, 
                                   prop_list.loc[w, 'OIL_B'], prop_list.loc[w, 'OIL_SEG1_TIME'], prop_list.loc[w, 'OIL_SEG2_TIME'], 
@@ -250,17 +254,12 @@ def calc_dcf():
     gas_nparr = v_gas(R)
     
     # Import price files
-    BaseDate = np.datetime64(wb.sheets('Input Settings').range('B2').value)
-    MaxDate = pd.to_datetime(prop_list['Start_Date']).max()
-    MaxDate_np = MaxDate.to_datetime64()
-    add_months = int(round((MaxDate - BaseDate) / np.timedelta64(1, 'M'), 0)) + 1
-    str_periods = duration + add_months
     dates = pd.DataFrame(pd.date_range(BaseDate, periods = str_periods, freq = 'MS'), columns = ['Date'])
-    strip_price = wb.sheets('Pricing Editor').range('A2').options(pd.DataFrame,index=False, expand='table').value
+    strip_price = wb.sheets('Pricing Editor').range('A2').options(pd.DataFrame, index=False, expand='table').value
     strip_price['Date'] = pd.to_datetime(strip_price['Date'])
 
     # Create diff array
-    gasdiff_pd = wb.sheets('Pricing Editor').range('F2').options(pd.DataFrame,index=False, expand='table').value
+    gasdiff_pd = wb.sheets('Pricing Editor').range('F2').options(pd.DataFrame, index=False, expand='table').value
     gasdiff_pd['Date'] = pd.to_datetime(gasdiff_pd['Date'])
 
     # Create numpy arrays for cash flow calcs
@@ -325,9 +324,10 @@ def calc_dcf():
         oil_vol = np.round(oil_nparr[x][6], 4)
         gas_vol = np.round(gas_nparr[x][6], 4)
         nvol_np = np.vstack((uid, month, oil_vol, gas_vol))
-        prop = np.full((DateDiff,), uid[0])
-        delay = np.arange(DateDiff)
-        oil_zeros = np.zeros((DateDiff),)
+        nvol_np = nvol_np[:, np.where(nvol_np[1] >= 0)[0]]
+        prop = np.full((max(DateDiff, 0),), uid[0])
+        delay = np.arange(max(DateDiff, 0))
+        oil_zeros = np.zeros(max(DateDiff, 0),)
         gas_zeros = oil_zeros
         shift = np.vstack((prop, delay, oil_zeros, gas_zeros))
         vol_arr = np.column_stack((shift, nvol_np)) 
@@ -474,6 +474,7 @@ def calc_dcf():
     # Create oneline output export to csv
     result_pd = pd.DataFrame(np.transpose(result_nparr), columns = ['UID', 'IRR', 'Life', 'Payout', 'ROI', 'DROI'])
     result_pd = pd.merge(result_pd, npv_pd, how = 'inner', left_index = True, right_index = True)
+
 
     # Calculate breakevens and add to pandas output
     equiv_ratio = wb.sheets('Input Settings').range('E3').value
