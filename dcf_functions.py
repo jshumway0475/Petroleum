@@ -2,7 +2,7 @@ import numpy as np
 
 
 # Create MonthDiff function to calculate time difference in months
-def MonthDiff(BaseDate, StartDate):
+def month_diff(BaseDate, StartDate):
     BaseDate = np.datetime64(BaseDate, 'M')
     StartDate = np.datetime64(StartDate, 'M')
     MonthDiff = int(((StartDate - (BaseDate - np.timedelta64(1, 'M'))) / np.timedelta64(1, 'M')) - 1)
