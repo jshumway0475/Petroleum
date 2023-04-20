@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def arps_decline(Qi, Dei, Def, b, t, prior_cum=0, prior_t=0):
+def arps_decline(UID, phase, Qi, Dei, Def, b, t, prior_cum=0, prior_t=0):
     # UID is a unique identifier for the well such as API, must be a number
     # phase is 1 = oil, 2 = gas, or 3 = water
     # Qi is the initial production rate typically in bbl/day or Mcf/day
@@ -53,7 +53,7 @@ def arps_decline(Qi, Dei, Def, b, t, prior_cum=0, prior_t=0):
         Np = (Qi - q) / (-np.log(1 - Dei)) * 365
         De_t = Dei
     
-    return t + prior_t, q, De_t, Np + prior_cum
+    return UID, phase, t + prior_t, q, De_t, Np + prior_cum
 
 # Vectorize the arps_decline function to allow it to work with numpy arrays
 varps_decline = np.vectorize(arps_decline)
@@ -74,7 +74,7 @@ Segment 1 is the initial incline period and uses Arps exponential equation
 Segment 2 is the period between the incline and decline periods and uses Arps exponential equation
 Segment 3 is the decline period
 '''
-def arps_segments(Q1, Q2, Q3, Dei, Def, b, t1, t2, duration):
+def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, t1, t2, duration):
     # Determine valid segment count
     if t1 > 0 and t2 > 0:
         segment_ct = 3
@@ -94,31 +94,33 @@ def arps_segments(Q1, Q2, Q3, Dei, Def, b, t1, t2, duration):
         t_seg3 = np.arange(1, duration - t1 - t2 + 1, 1)
         Dei1 = exp_Dei(Q1, Q2, t1)
         Dei2 = exp_Dei(Q2, Q3, t2)
-        seg1 = varps_decline(Q1, Dei1, Dei1, 1.0, t_seg1, 0, 0)
-        prior_cum1 = np.max(seg1[3])
-        seg2 = varps_decline(Q2, Dei2, Dei2, 1.0, t_seg2, prior_cum1, t1)
-        prior_cum2= np.max(seg2[3])
-        seg3 = varps_decline(Q3, Dei, Def, b, t_seg3, prior_cum2, t1 + t2)
+        seg1 = varps_decline(UID, phase, Q1, Dei1, Dei1, 1.0, t_seg1, 0, 0)
+        prior_cum1 = np.max(seg1[5])
+        seg2 = varps_decline(UID, phase, Q2, Dei2, Dei2, 1.0, t_seg2, prior_cum1, t1)
+        prior_cum2= np.max(seg2[5])
+        seg3 = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, prior_cum2, t1 + t2)
         out_nparr = np.column_stack((seg1, seg2, seg3))
     elif segment_ct == 2:
         t_seg1 = np.arange(0, t1 + 1, 1)
         t_seg3 = np.arange(1, duration - t1 + 1, 1)
         Dei1 = exp_Dei(Q1, Q3, t1)
-        seg1 = varps_decline(Q1, Dei1, Dei1, 1.0, t_seg1, 0, 0)
-        prior_cum1 = np.max(seg1[3])
-        seg3 = varps_decline(Q3, Dei, Def, b, t_seg3, prior_cum1, t1)
+        seg1 = varps_decline(UID, phase, Q1, Dei1, Dei1, 1.0, t_seg1, 0, 0)
+        prior_cum1 = np.max(seg1[5])
+        seg3 = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, prior_cum1, t1)
         out_nparr = np.column_stack((seg1, seg3))
     elif segment_ct == 1:
         t_seg3 = np.arange(0, duration + 1, 1)
-        out_nparr = varps_decline(Q3, Dei, Def, b, t_seg3, 0, 0)
+        out_nparr = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, 0, 0)
     else:
         t_nan = np.arange(0, duration + 1, 1)
+        UID_nan = np.full((1, duration + 1), UID)
+        phase_nan = np.full((1, duration + 1), phase)
         val_nan = np.full((3, duration + 1), 0)
         out_nparr = np.vstack((t_nan, val_nan))
     
     # Add monthly volumes to array
-    Cum_i = out_nparr[3][:-1]
-    Cum_f = out_nparr[3][1:]
+    Cum_i = out_nparr[5][:-1]
+    Cum_f = out_nparr[5][1:]
     cum = Cum_f - Cum_i
     cum[cum < 0] = 0
     cum = np.insert(cum, 0, 0)
