@@ -32,8 +32,8 @@ def oil_gas_ticker_dict(date: str, years: int=5):
     }
     return oil_tickers, gas_tickers
 
-def fetch_data(ticker):
-    data = yf.Ticker(ticker).history(period="1y")
+def fetch_data(ticker, date):
+    data = yf.Ticker(ticker).history(start=date, end=date + dt.timedelta(days=1))
     return data
 
 def extract_data(data):
@@ -45,14 +45,20 @@ def extract_data(data):
 def get_combined_data(date: str, years: int=5):
     oil_dict, gas_dict = oil_gas_ticker_dict(date, years)
     data_list = []
-    for date, oil_ticker in oil_dict.items():
-        gas_ticker = gas_dict.get(date)
-        oil_data = fetch_data(oil_ticker)
-        gas_data = fetch_data(gas_ticker)
+    for date_key, oil_ticker in oil_dict.items():
+        gas_ticker = gas_dict.get(date_key)
+        
+        # Convert date_key to datetime.date object
+        date_obj = dt.datetime.strptime(date_key, "%Y-%m").date()
+        
+        oil_data = fetch_data(oil_ticker, date_obj)
+        gas_data = fetch_data(gas_ticker, date_obj)
+        
         oil_close, oil_volume = extract_data(oil_data)
         gas_close, gas_volume = extract_data(gas_data)
+        
         data_list.append({
-            'Date': date,
+            'Date': date_key,
             'Oil Ticker': oil_ticker,
             'Gas Ticker': gas_ticker,
             'Oil Close Price': oil_close,
