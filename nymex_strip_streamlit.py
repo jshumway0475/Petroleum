@@ -40,35 +40,19 @@ def extract_data(data):
     if not data.empty:
         return data.iloc[-1]['Close'], data.iloc[-1]['Volume']
     else:
-        st.write(f"No data found for provided date.")  # Debug write
         return None, None
 
 def get_combined_data(date: str, years: int=5):
     oil_dict, gas_dict = oil_gas_ticker_dict(date, years)
-    
     data_list = []
-    for key_date, oil_ticker in oil_dict.items():
-        gas_ticker = gas_dict.get(key_date)
-        
+    for date, oil_ticker in oil_dict.items():
+        gas_ticker = gas_dict.get(date)
         oil_data = fetch_data(oil_ticker)
         gas_data = fetch_data(gas_ticker)
-        
-        # Filter data to the given date
-        oil_data_filtered = oil_data[oil_data.index == pd.Timestamp(date)]
-        gas_data_filtered = gas_data[gas_data.index == pd.Timestamp(date)]
-        
-        # If there's no data for the given date, skip
-        if oil_data_filtered.empty or gas_data_filtered.empty:
-            continue
-        
-        oil_close = oil_data_filtered.iloc[0]['Close']
-        oil_volume = oil_data_filtered.iloc[0]['Volume']
-        
-        gas_close = gas_data_filtered.iloc[0]['Close']
-        gas_volume = gas_data_filtered.iloc[0]['Volume']
-        
+        oil_close, oil_volume = extract_data(oil_data)
+        gas_close, gas_volume = extract_data(gas_data)
         data_list.append({
-            'Date': key_date,
+            'Date': date,
             'Oil Ticker': oil_ticker,
             'Gas Ticker': gas_ticker,
             'Oil Close Price': oil_close,
@@ -76,7 +60,6 @@ def get_combined_data(date: str, years: int=5):
             'Oil Volume': oil_volume,
             'Gas Volume': gas_volume
         })
-    
     return pd.DataFrame(data_list)
 
 # Streamlit UI
@@ -84,9 +67,7 @@ st.title("Oil & Gas Futures Prices")
 
 today = dt.datetime.now().date()
 yesterday = today - dt.timedelta(days=1)
-one_year_ago = today - dt.timedelta(days=365)
-
-strip_date = st.date_input('Strip Date', yesterday, min_value=one_year_ago, max_value=today)
+strip_date = st.date_input('Strip Date', yesterday)
 years = st.slider('Years', 1, 10, 5)
 
 if st.button('Get Data'):
