@@ -33,8 +33,14 @@ def oil_gas_ticker_dict(date: str, years: int=5):
     return oil_tickers, gas_tickers
 
 def fetch_data(ticker, date):
-    st.write(f"Fetching data for {ticker} on {date}")  # Debug write
-    data = yf.Ticker(ticker).history(start=date, end=date + dt.timedelta(days=1))
+    # Fetching 1 year of data
+    end_date = date + dt.timedelta(days=1)  # To ensure the desired date is included
+    start_date = date - dt.timedelta(days=365)
+    
+    data = yf.Ticker(ticker).history(start=start_date, end=end_date)
+    
+    # Filtering to the desired date
+    data = data[data.index == date]
     return data
 
 def extract_data(data):
@@ -75,7 +81,9 @@ st.title("Oil & Gas Futures Prices")
 
 today = dt.datetime.now().date()
 yesterday = today - dt.timedelta(days=1)
-strip_date = st.date_input('Strip Date', yesterday)
+one_year_ago = today - dt.timedelta(days=365)
+
+strip_date = st.date_input('Strip Date', yesterday, min_value=one_year_ago, max_value=today)
 years = st.slider('Years', 1, 10, 5)
 
 if st.button('Get Data'):
