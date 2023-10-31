@@ -33,25 +33,32 @@ def oil_gas_ticker_dict(date: str, years: int=5):
     return oil_tickers, gas_tickers
 
 def fetch_data(ticker, specific_date):
-    data = yf.Ticker(ticker).history(start=specific_date, end=specific_date + dt.timedelta(days=1))
-    return data.loc[specific_date] if specific_date in data.index else pd.DataFrame()
+    start_date = specific_date - dt.timedelta(days=1) # a day before to ensure the specific_date is included
+    end_date = specific_date + dt.timedelta(days=1)   # a day after to ensure the specific_date is included
+    data = yf.Ticker(ticker).history(start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'))
+    return data
 
-def extract_data(data):
-    if not data.empty:
-        return data['Close'], data['Volume']
+def extract_data(data, specific_date):
+    specific_date_str = specific_date.strftime('%Y-%m-%d')
+    if specific_date_str in data.index:
+        entry = data.loc[specific_date_str]
+        return entry['Close'], entry['Volume']
     else:
         return None, None
 
-def get_combined_data(date: str, years: int=5):
-    oil_dict, gas_dict = oil_gas_ticker_dict(date, years)
-    specific_date = dt.datetime.strptime(date, '%Y-%m-%d').date()
+def get_combined_data(input_date: str, years: int=5):
+    specific_date = dt.datetime.strptime(input_date, '%Y-%m-%d')
+    oil_dict, gas_dict = oil_gas_ticker_dict(input_date, years)
     data_list = []
+
     for date, oil_ticker in oil_dict.items():
         gas_ticker = gas_dict.get(date)
         oil_data = fetch_data(oil_ticker, specific_date)
         gas_data = fetch_data(gas_ticker, specific_date)
-        oil_close, oil_volume = extract_data(oil_data)
-        gas_close, gas_volume = extract_data(gas_data)
+        
+        oil_close, oil_volume = extract_data(oil_data, specific_date)
+        gas_close, gas_volume = extract_data(gas_data, specific_date)
+        
         data_list.append({
             'Date': date,
             'Oil Ticker': oil_ticker,
@@ -61,6 +68,7 @@ def get_combined_data(date: str, years: int=5):
             'Oil Volume': oil_volume,
             'Gas Volume': gas_volume
         })
+
     return pd.DataFrame(data_list)
 
 # Streamlit UI
