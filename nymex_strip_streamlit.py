@@ -32,23 +32,24 @@ def oil_gas_ticker_dict(date: str, years: int=5):
     }
     return oil_tickers, gas_tickers
 
-def fetch_data(ticker):
-    data = yf.Ticker(ticker).history(period="1y")
-    return data
+def fetch_data(ticker, specific_date):
+    data = yf.Ticker(ticker).history(start=specific_date, end=specific_date + dt.timedelta(days=1))
+    return data.loc[specific_date] if specific_date in data.index else pd.DataFrame()
 
 def extract_data(data):
     if not data.empty:
-        return data.iloc[-1]['Close'], data.iloc[-1]['Volume']
+        return data['Close'], data['Volume']
     else:
         return None, None
 
 def get_combined_data(date: str, years: int=5):
     oil_dict, gas_dict = oil_gas_ticker_dict(date, years)
+    specific_date = dt.datetime.strptime(date, '%Y-%m-%d').date()
     data_list = []
     for date, oil_ticker in oil_dict.items():
         gas_ticker = gas_dict.get(date)
-        oil_data = fetch_data(oil_ticker)
-        gas_data = fetch_data(gas_ticker)
+        oil_data = fetch_data(oil_ticker, specific_date)
+        gas_data = fetch_data(gas_ticker, specific_date)
         oil_close, oil_volume = extract_data(oil_data)
         gas_close, gas_volume = extract_data(gas_data)
         data_list.append({
@@ -67,7 +68,7 @@ st.title("Oil & Gas Futures Prices")
 
 today = dt.datetime.now().date()
 yesterday = today - dt.timedelta(days=1)
-strip_date = st.date_input('Strip Date', yesterday)
+strip_date = st.date_input('Strip Date', yesterday, min_value=yesterday - dt.timedelta(days=365), max_value=yesterday)
 years = st.slider('Years', 1, 10, 5)
 
 if st.button('Get Data'):
