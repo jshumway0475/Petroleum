@@ -32,15 +32,8 @@ def oil_gas_ticker_dict(date: str, years: int=5):
     }
     return oil_tickers, gas_tickers
 
-def fetch_data(ticker, date):
-    # Fetching 1 year of data
-    end_date = date + dt.timedelta(days=1)  # To ensure the desired date is included
-    start_date = date - dt.timedelta(days=365)
-    
-    data = yf.Ticker(ticker).history(start=start_date, end=end_date)
-    
-    # Filtering to the desired date
-    data = data[data.index == date]
+def fetch_data(ticker):
+    data = yf.Ticker(ticker).history(period="1y")
     return data
 
 def extract_data(data):
@@ -52,21 +45,30 @@ def extract_data(data):
 
 def get_combined_data(date: str, years: int=5):
     oil_dict, gas_dict = oil_gas_ticker_dict(date, years)
+    
     data_list = []
-    for date_key, oil_ticker in oil_dict.items():
-        gas_ticker = gas_dict.get(date_key)
+    for key_date, oil_ticker in oil_dict.items():
+        gas_ticker = gas_dict.get(key_date)
         
-        # Convert date_key to datetime.date object
-        date_obj = dt.datetime.strptime(date_key, "%Y-%m").date()
+        oil_data = fetch_data(oil_ticker)
+        gas_data = fetch_data(gas_ticker)
         
-        oil_data = fetch_data(oil_ticker, date_obj)
-        gas_data = fetch_data(gas_ticker, date_obj)
+        # Filter data to the given date
+        oil_data_filtered = oil_data[oil_data.index == pd.Timestamp(date)]
+        gas_data_filtered = gas_data[gas_data.index == pd.Timestamp(date)]
         
-        oil_close, oil_volume = extract_data(oil_data)
-        gas_close, gas_volume = extract_data(gas_data)
+        # If there's no data for the given date, skip
+        if oil_data_filtered.empty or gas_data_filtered.empty:
+            continue
+        
+        oil_close = oil_data_filtered.iloc[0]['Close']
+        oil_volume = oil_data_filtered.iloc[0]['Volume']
+        
+        gas_close = gas_data_filtered.iloc[0]['Close']
+        gas_volume = gas_data_filtered.iloc[0]['Volume']
         
         data_list.append({
-            'Date': date_key,
+            'Date': key_date,
             'Oil Ticker': oil_ticker,
             'Gas Ticker': gas_ticker,
             'Oil Close Price': oil_close,
@@ -74,6 +76,7 @@ def get_combined_data(date: str, years: int=5):
             'Oil Volume': oil_volume,
             'Gas Volume': gas_volume
         })
+    
     return pd.DataFrame(data_list)
 
 # Streamlit UI
