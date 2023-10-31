@@ -33,7 +33,7 @@ def oil_gas_ticker_dict(date: str, years: int=5):
     return oil_tickers, gas_tickers
 
 def fetch_data(ticker, date):
-    print(f"Fetching data for {ticker} on {date}")  # Debug print
+    st.write(f"Fetching data for {ticker} on {date}")  # Debug write
     data = yf.Ticker(ticker).history(start=date, end=date + dt.timedelta(days=1))
     return data
 
@@ -41,7 +41,7 @@ def extract_data(data):
     if not data.empty:
         return data.iloc[-1]['Close'], data.iloc[-1]['Volume']
     else:
-        print(f"No data found for provided date.")  # Debug print
+        st.write(f"No data found for provided date.")  # Debug write
         return None, None
 
 def get_combined_data(date: str, years: int=5):
