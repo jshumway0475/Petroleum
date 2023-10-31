@@ -65,7 +65,9 @@ def get_combined_data(date: str, years: int=5):
 # Streamlit UI
 st.title("Oil & Gas Futures Prices")
 
-strip_date = st.date_input('Strip Date', '2023-10-30')
+today = dt.datetime.now().date()
+yesterday = today - dt.timedelta(days=1)
+strip_date = st.date_input('Strip Date', yesterday)
 years = st.slider('Years', 1, 10, 5)
 
 if st.button('Get Data'):
