@@ -155,7 +155,6 @@ st.markdown('[Oil Contract Expiry](https://www.eia.gov/dnav/pet/TblDefs/pet_pri_
 st.markdown('[Nat Gas Contract Expiry](https://www.eia.gov/dnav/ng/TblDefs/ng_pri_fut_tbldef2.asp)')
 yesterday = today - dt.timedelta(days=1)
 strip_date = st.date_input('Strip Date', yesterday, min_value=yesterday - dt.timedelta(days=365), max_value=yesterday)
-st.title(f'NYMEX Futures Pricing for {strip_date.strftime("%Y-%m-%d")}')
 years = st.slider('Years', 1, 10, 5)
 
 if st.button('Get Data'):
