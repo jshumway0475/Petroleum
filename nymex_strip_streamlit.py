@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import datetime as dt
 from pandas.tseries.holiday import USFederalHolidayCalendar
+import plotly.graph_objects as go
 
 # Create a calendar instance
 today = dt.date.today()
@@ -148,6 +149,68 @@ def get_combined_data(input_date: str, years: int=5):
 
     return pd.DataFrame(data_list)
 
+def plot_prices_with_tooltips(dataframe):
+    # Create a trace for Oil prices
+    trace_oil = go.Scatter(
+        x=dataframe['Date'],
+        y=dataframe['Oil Close Price'],
+        mode='lines',
+        name='Oil Price',
+        line=dict(color='green', width=4.0),
+        yaxis='y1',
+        hovertemplate="Date: %{x}<br>Oil Price: $%{y:.2f}<extra></extra>"
+    )
+    
+    # Create a trace for Gas prices
+    trace_gas = go.Scatter(
+        x=dataframe['Date'],
+        y=dataframe['Gas Close Price'],
+        mode='lines',
+        name='Gas Price',
+        line=dict(color='red', width=4.0),
+        yaxis='y2',
+        hovertemplate="Date: %{x}<br>Gas Price: $%{y:.2f}<extra></extra>"
+    )
+    
+    layout = go.Layout(
+        showlegend=False,  # Turn off the legend
+        yaxis=dict(
+            title='Oil Price', 
+            color='green',
+            tickprefix='$',
+            tickformat='.2f',
+            showgrid=True,     # Gridlines for y-axis
+            zeroline=True,     # Show the 0-line
+            gridcolor='lightgray', # Gridline color
+            linecolor='black', # Axis line color
+            mirror=True        # Mirror axis line
+        ),
+        yaxis2=dict(
+            title='Gas Price', 
+            color='red',
+            overlaying='y',
+            side='right',
+            tickprefix='$',
+            tickformat='.2f',
+            showgrid=False,
+            zeroline=True,     # Show the 0-line
+            gridcolor='lightgray', # Gridline color
+            linecolor='black', # Axis line color
+            mirror='ticks'     # Mirror axis line with ticks
+        ),
+        xaxis=dict(
+            showgrid=True,     # Gridlines for x-axis
+            zeroline=True,     # Show the 0-line
+            gridcolor='lightgray', # Gridline color
+            linecolor='black', # Axis line color
+            mirror=True        # Mirror axis line
+        ),
+        plot_bgcolor='white'
+    )
+    
+    fig = go.Figure(data=[trace_oil, trace_gas], layout=layout)
+    st.plotly_chart(fig)
+
 # Streamlit UI
 st.write('This app fetches the oil and natural gas futures prices from Yahoo Finance')
 st.write('If a contract is expired, it will fetch the settlement on the final day of trading')
@@ -161,5 +224,6 @@ if st.button('Get Data'):
     with st.spinner('Fetching data...'):
         result = get_combined_data(strip_date.strftime('%Y-%m-%d'), years)
     st.write(result)
+    plot_prices_with_tooltips(result)
 
 st.write('Adjust the inputs and click "Get Data" to fetch the data.')
