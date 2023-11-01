@@ -126,8 +126,8 @@ def get_combined_data(input_date: str, years: int=5):
             gas_close, gas_volume = extract_data(gas_data, specific_date)
         except ValueError:
             try:
-                oil_expiry_date = min(get_expiry_date_for_oil(oil_ticker), specific_date.date())
-                gas_expiry_date = min(get_expiry_date_for_gas(gas_ticker), specific_date.date())
+                oil_expiry_date = get_expiry_date_for_oil(oil_ticker)
+                gas_expiry_date = get_expiry_date_for_gas(gas_ticker)
                 oil_data = fetch_data('CL=F', oil_expiry_date)
                 gas_data = fetch_data('NG=F', gas_expiry_date)
                 oil_close, oil_volume = extract_data(oil_data, oil_expiry_date)
