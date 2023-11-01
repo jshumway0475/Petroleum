@@ -81,7 +81,7 @@ def get_expiry_date_for_oil(ticker):
 def get_expiry_date_for_gas(ticker):
     month_code = ticker[2]
     year = int('20' + ticker[3:5])
-    month = [k for k, v in month_codes.items() if v == month_code][0] - 1
+    month = [k for k, v in month_codes.items() if v == month_code][0]
     
     expiration_date = dt.date(year, month, 1)  # first day of the delivery month
     
