@@ -126,7 +126,6 @@ def extract_data(data, specific_date):
         return None, None
 
 # Function to combine the data into a dataframe
-@st.cache
 def get_combined_data(input_date: str, years: int=5):
     specific_date = dt.datetime.strptime(input_date, '%Y-%m-%d')
     oil_dict, gas_dict = oil_gas_ticker_dict(input_date, years)
