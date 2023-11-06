@@ -229,13 +229,24 @@ st.write('This app fetches the oil and natural gas futures prices from Yahoo Fin
 st.write('If a contract is expired, it will fetch the settlement on the final day of trading')
 st.markdown('[Oil Contract Expiry](https://www.eia.gov/dnav/pet/TblDefs/pet_pri_fut_tbldef2.asp)')
 st.markdown('[Nat Gas Contract Expiry](https://www.eia.gov/dnav/ng/TblDefs/ng_pri_fut_tbldef2.asp)')
+
+# Initialize session state for data fetching
+if 'data_fetched' not in st.session_state:
+    st.session_state['data_fetched'] = False
+    st.session_state['result'] = None
+
 strip_date = st.date_input('Strip Date', last_business_day, min_value=last_business_day - dt.timedelta(days=365), max_value=last_business_day)
 years = st.slider('Years', 1, 10, 5)
 
-if st.button('Get Data'):
+# Trigger data fetching only if it has not been done already
+if st.button('Get Data') and not st.session_state['data_fetched']:
     with st.spinner('Fetching data...'):
-        result = get_combined_data(strip_date.strftime('%Y-%m-%d'), years)
-    st.write(result)
-    plot_prices_with_tooltips(result)
+        st.session_state['result'] = get_combined_data(strip_date.strftime('%Y-%m-%d'), years)
+        st.session_state['data_fetched'] = True  # Set the flag to True after fetching
+
+# Display the results if available
+if st.session_state['result'] is not None:
+    st.write(st.session_state['result'])
+    plot_prices_with_tooltips(st.session_state['result'])
 
 st.write('Adjust the inputs and click "Get Data" to fetch the data.')
