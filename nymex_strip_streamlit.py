@@ -238,15 +238,10 @@ if 'data_fetched' not in st.session_state:
 strip_date = st.date_input('Strip Date', last_business_day, min_value=last_business_day - dt.timedelta(days=365), max_value=last_business_day)
 years = st.slider('Years', 1, 10, 5)
 
-# Trigger data fetching only if it has not been done already
-if st.button('Get Data') and not st.session_state['data_fetched']:
+if st.button('Get Data'):
     with st.spinner('Fetching data...'):
-        st.session_state['result'] = get_combined_data(strip_date.strftime('%Y-%m-%d'), years)
-        st.session_state['data_fetched'] = True  # Set the flag to True after fetching
-
-# Display the results if available
-if st.session_state['result'] is not None:
-    st.write(st.session_state['result'])
-    plot_prices_with_tooltips(st.session_state['result'])
+        result = get_combined_data(strip_date.strftime('%Y-%m-%d'), years)
+    st.write(result)
+    plot_prices_with_tooltips(result)
 
 st.write('Adjust the inputs and click "Get Data" to fetch the data.')
