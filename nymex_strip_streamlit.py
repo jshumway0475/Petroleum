@@ -11,6 +11,19 @@ end_date = today + dt.timedelta(days=10*365.25)
 cal = USFederalHolidayCalendar()
 holidays = cal.holidays(start='2000-01-01', end=end_date).date
 
+# Function to return the most recent business day
+def get_last_business_day(holidays):
+    today = dt.date.today()
+    last_business_day = today - dt.timedelta(days=1)
+
+    # Loop to find the last business day
+    while last_business_day.weekday() >= 5 or last_business_day in holidays:
+        last_business_day -= dt.timedelta(days=1)
+    
+    return last_business_day
+
+last_business_day = get_last_business_day(holidays)
+
 # Dictionary for month codes
 month_codes = {
     1: 'F', 2: 'G', 3: 'H', 4: 'J',
@@ -216,8 +229,7 @@ st.write('This app fetches the oil and natural gas futures prices from Yahoo Fin
 st.write('If a contract is expired, it will fetch the settlement on the final day of trading')
 st.markdown('[Oil Contract Expiry](https://www.eia.gov/dnav/pet/TblDefs/pet_pri_fut_tbldef2.asp)')
 st.markdown('[Nat Gas Contract Expiry](https://www.eia.gov/dnav/ng/TblDefs/ng_pri_fut_tbldef2.asp)')
-yesterday = today - dt.timedelta(days=1)
-strip_date = st.date_input('Strip Date', yesterday, min_value=yesterday - dt.timedelta(days=365), max_value=yesterday)
+strip_date = st.date_input('Strip Date', last_business_day, min_value=last_business_day - dt.timedelta(days=365), max_value=last_business_day)
 years = st.slider('Years', 1, 10, 5)
 
 if st.button('Get Data'):
