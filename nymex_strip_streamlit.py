@@ -106,7 +106,6 @@ def get_expiry_date_for_gas(ticker):
     return expiration_date
 
 # Function to fetch data from Yahoo Finance
-@st.cache
 def fetch_data(ticker, specific_date):
     start_date = specific_date - dt.timedelta(days=1) # a day before to ensure the specific_date is included
     end_date = specific_date + dt.timedelta(days=1)   # a day after to ensure the specific_date is included
