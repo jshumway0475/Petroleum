@@ -11,7 +11,7 @@ def arps_decline(UID, phase, Qi, Dei, Def, b, t, prior_cum=0, prior_t=0):
     # t is the time as a month integer
     # prior_cum is the cumulative amount produced before the start of the decline calcuations
     # prior_t is an integer representing the final month from a previous decline segment
-    
+
     # Calculations to determine decline type
     if Dei == Def:
         Type = 'exp'
@@ -69,12 +69,12 @@ def exp_Dei(Qi, Qf, duration):
 
 
 # Function to manage multiple segments
-'''
-Segment 1 is the initial incline period and uses Arps exponential equation
-Segment 2 is the period between the incline and decline periods and uses Arps exponential equation
-Segment 3 is the decline period
-'''
-def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, t1, t2, duration):
+def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration):
+    '''
+    Segment 1 is the initial incline period and uses Arps exponential equation
+    Segment 2 is the period between the incline and decline periods and uses Arps exponential equation
+    Segment 3 is the decline period
+    '''
     # Determine valid segment count
     if t1 > 0 and t2 > 0:
         segment_ct = 3
@@ -99,6 +99,10 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, t1, t2, duration):
         seg2 = varps_decline(UID, phase, Q2, Dei2, Dei2, 1.0, t_seg2, prior_cum1, t1)
         prior_cum2= np.max(seg2[5])
         seg3 = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, prior_cum2, t1 + t2)
+        # Filter out months where production is less than Qabn
+        if Qabn > 0:
+            Qabn_filter = seg3[3] >= Qabn
+            seg3 = seg3[:,Qabn_filter]
         out_nparr = np.column_stack((seg1, seg2, seg3))
     elif segment_ct == 2:
         t_seg1 = np.arange(0, t1 + 1, 1)
