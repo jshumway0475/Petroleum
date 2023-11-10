@@ -69,12 +69,15 @@ def exp_Dei(Qi, Qf, duration):
 
 
 # Function to manage multiple segments
-def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration):
+def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, prior_cum=0, prior_t=0):
     '''
     Segment 1 is the initial incline period and uses Arps exponential equation
     Segment 2 is the period between the incline and decline periods and uses Arps exponential equation
     Segment 3 is the decline period
     '''
+    # Adjust duration if needed
+    duration = duration - prior_t
+
     # Determine valid segment count
     if t1 > 0 and t2 > 0:
         segment_ct = 3
@@ -94,7 +97,7 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration):
         t_seg3 = np.arange(1, duration - t1 - t2 + 1, 1)
         Dei1 = exp_Dei(Q1, Q2, t1)
         Dei2 = exp_Dei(Q2, Q3, t2)
-        seg1 = varps_decline(UID, phase, Q1, Dei1, Dei1, 1.0, t_seg1, 0, 0)
+        seg1 = varps_decline(UID, phase, Q1, Dei1, Dei1, 1.0, t_seg1, prior_cum, prior_t)
         seg1_arr = np.array(seg1)
         prior_cum1 = np.max(seg1_arr[5])
         seg2 = varps_decline(UID, phase, Q2, Dei2, Dei2, 1.0, t_seg2, prior_cum1, t1)
@@ -111,7 +114,7 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration):
         t_seg1 = np.arange(0, t1 + 1, 1)
         t_seg3 = np.arange(1, duration - t1 + 1, 1)
         Dei1 = exp_Dei(Q1, Q3, t1)
-        seg1 = varps_decline(UID, phase, Q1, Dei1, Dei1, 1.0, t_seg1, 0, 0)
+        seg1 = varps_decline(UID, phase, Q1, Dei1, Dei1, 1.0, t_seg1, prior_cum, prior_t)
         seg1_arr = np.array(seg1)
         prior_cum1 = np.max(seg1_arr[5])
         seg3 = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, prior_cum1, t1)
@@ -123,7 +126,7 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration):
         out_nparr = np.column_stack((seg1_arr, seg3_arr))
     elif segment_ct == 1:
         t_seg3 = np.arange(0, duration + 1, 1)
-        out_nparr = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, 0, 0)
+        out_nparr = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, prior_cum, prior_t)
         out_nparr = np.array(out_nparr)
         # Filter out months where production is less than Qabn
         if Qabn > 0:
