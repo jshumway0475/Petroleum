@@ -75,7 +75,14 @@ def oil_gas_ticker_dict(date: str, years: int=5):
 def get_expiry_date_for_oil(ticker):
     month_code = ticker[2]
     year = int('20' + ticker[3:5])
-    month = [k for k, v in month_codes.items() if v == month_code][0] - 1
+    month = [k for k, v in month_codes.items() if v == month_code][0]
+
+    # Adjust for January case
+    if month == 1:
+        month = 12
+        year -= 1  # Adjust year if wrapping around to previous December
+    else:
+        month -= 1
     
     expiration_date = dt.date(year, month, 25)
     
