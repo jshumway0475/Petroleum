@@ -1,0 +1,152 @@
+credentials:
+  - name: ihs_pat
+    username: xxxxxx
+    password: xxxxxx
+
+  - name: env_bi_connect
+    username: xxxxxx
+    password: xxxxxx
+    servername: bi.drillinginfo.com
+    port: 1433
+    db_name: Drillinginfo_DIBI
+
+  - name: di_bi_connect
+    username: xxxxxx
+    password: xxxxxx
+    servername: bi.drillinginfo.com
+    port: 1433
+    db_name: Drillinginfo_DIBI
+
+  - name: sql1_sa
+    username: sa
+    password: xxxxxx
+    servername: "xxx.xx.xx.xx"
+    port: 12345
+
+  - name: sql2_sa
+    username: sa
+    password: xxxxxx
+    servername: "xxx.xx.xx.xx"
+    port: 12345
+
+  - name: analytics_aries_local_docker
+    username: xxxxxx
+    password: xxxxxx
+    servername: host.docker.internal
+    port: 1433
+    db_name: Analytics_Aries
+
+  - name: analytics_local
+    username: xxxxxx
+    password: xxxxxx
+    servername: xxxxxx
+    port: 1433
+    db_name: Analytics
+
+  - name: analytics_local_docker
+    username: xxxxxx
+    password: xxxxxx
+    servername: host.docker.internal
+    port: 1433
+    db_name: Analytics
+
+geology:
+  - name: example_grid
+    path: "/home/vscode/conduit/data/grids/TVD Structure Map to Top Barnett Pay V2.XYZ"
+    type: 1  # 1: long, lat, z; 2: x, y, z
+    epsg: 4269  # 4269: NAD83; 4326: WGS84, see epsg.io
+    delimiter: ","
+    interval: 
+      - ZONE1
+      - ZONE2
+    destination_column: TopOfZone_FT
+
+decline_curve:
+  - name: arps_parameters
+    terminal_decline:
+      OIL: 0.08
+      GAS: 0.06
+      WATER: 0.08
+    initial_decline:
+      guess: 0.5
+      max: 0.99
+    abandonment_rate:
+      OIL: 1.0
+      GAS: 1.0
+      WATER: 1.0
+    b_factor:
+      OIL:
+        min: 0.7
+        guess: 1.0
+        max: 1.2
+      GAS:
+        min: 0.9
+        guess: 1.2
+        max: 1.4
+      WATER:
+        min: 0.7
+        guess: 1.0
+        max: 1.2
+
+  - name: bourdet_outliers
+    setting: True
+    smoothing_factor: 0.05  # Smoothing factor in units of log-cycle fractions
+    z_threshold: 2.0
+    min_array_size: 6
+
+  - name: detect_changepoints
+    setting: True
+    penalty: 1.0
+    fit_segment: last  # 'first', 'last', or 'all'
+
+  - name: estimate_b
+    setting: False
+    smoothing_factor: 2
+    min_months: 12
+    max_months: 60
+
+  - name: smoothing
+    factor: 2
+
+  - name: method
+    setting: curve_fit  # 'curve_fit', 'differential_evolution' or 'monte_carlo'. Default is 'curve_fit'. 'monte_carlo' is the most robust but slowest method (5-10 secs per forecast).
+    trials: 3000
+    fit_months: 72  # Maximum number of months to fit referenced to todays date
+    manual_analyst: "JAYENG"  # Aries qualifier used for manual decline forecasts
+    ta_offset_mos: 12  # Maximum number of months since last prodution date to still consider a well active and include in forecasting
+    new_data_mos: 3  # Minimum number of months of new data since last forecast to trigger a new forecast
+    log_folder: "/mnt/your_env/Working Files/error_management"  # Needed to store chunked data to not loose progress in case of failure
+    well_list: []  # List of WellID values to forecast if fit_population is 'well_list'
+    fit_group: "PERMIAN"  # FitGroup to forecast if fit_population is 'fit_group'
+
+well_spacing:
+  buffer_distance: 5280  # Units in feet
+  intersection_fraction: 0.25  # The fraction of the neighboring lateral that intersects with the buffer of the reference lateral
+  co_completed_threshold: 70  # Units in days, difference between first production dates
+  final_projection: "EPSG:4326"
+  minimum_lateral_length: 1000  # Units in feet
+  day_offset: 30  # Number of days between recalculation of well spacing for a fit group
+  fit_groups:  # Used to keep batches in manageable sizes
+    - name: "PERMIAN"
+      basins: ["MIDLAND", "PERMIAN OTHER"]
+
+    - name: "DELAWARE"
+      basins: ["DELAWARE"]
+
+    - name: "MIDCON"
+      basins: ["ANADARKO", "ARKOMA", "ARDMORE", "MID-CONTINENT OTHER", "CHEROKEE PLATFORM", "MARIETTA", "PALO DURO"]
+
+    - name: "WESTERN GULF"
+      basins: ["WESTERN GULF"]
+
+    - name: "WILLISTON"
+      basins: ["WILLISTON"]
+
+    - name: "FORT WORTH"
+      basins: ["FORT WORTH"]
+
+    - name: "DENVER-JULESBURG"
+      basins: ["DENVER-JULESBURG"]
+
+    - name: "ARK-LA-TX"
+      basins: ["ARK-LA-TX"]
