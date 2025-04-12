@@ -49,7 +49,7 @@ A collection of CSS scripts, Python data functions, and IronPython scripts that 
 ### sql
 SQL scripts that serve as a working example of the Data Warehouse needed for the PlayInsight Suite. Includes:
 - Scripts to create the Data Warehouse
-- Stored procedures to populate the Data Warehouse (using Enverus data as an example)
+- Stored procedures to populate the Data Warehouse
 - Views to enable the Spotfire UI
 
 ## Other Files
