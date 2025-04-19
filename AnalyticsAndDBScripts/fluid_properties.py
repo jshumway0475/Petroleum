@@ -476,3 +476,90 @@ def free_gas_saturation(p, t, gor, api, sg, wtr_sat, co2=0.0, h2s=0.0, sro=0.3, 
         gas_sat = 0.0
 
     return gas_sat, oil_sat, rsb, pb, bo, bg, mu_o, mu_g
+
+# Gas Processing Calculations
+# Helper function to for by component calculations
+def gas_processing(grs_vol, shrink_init, mol_pct, ideal_liquid_content, ideal_btu, pct_recovery, base_psi=14.65):
+    '''
+    Args:
+        grs_vol: produced wet gas volume in mcf
+        shrink_init: initial shrinkage factor before plant inlet
+        mol_pct: molar fraction of the gas
+        ideal_liquid_content: ideal liquid content in scf per gallon
+        ideal_btu: ideal Btu content in Btu/scf
+        pct_recovery: percentage fixed or actual ngl recovery as a decimal
+        base_psi: base pressure in psia as base for the calculations
+    Returns (all measued by component):
+        recovered_gals: NGL gallons recovered by the plant
+        wet_btu: Btu content of gas at the plant inlet in Btu/scf
+        extracted_btu: Btu content extracted from the gas gas at the plant outlet in Btu/scf
+        reduced_mol_pct: reduced molar fraction of the gas
+    '''
+    processed_vol = grs_vol * 1000 * (1 - shrink_init)
+    recovered_gals = (mol_pct / (ideal_liquid_content * 14.696 / base_psi) * pct_recovery) * processed_vol
+    wet_btu = mol_pct * ideal_btu * base_psi / 14.696
+    extracted_btu = wet_btu * pct_recovery
+    reduced_mol_pct = mol_pct * (1 - pct_recovery)
+
+    return recovered_gals, wet_btu, extracted_btu, reduced_mol_pct
+
+# Function to batch results for all components
+def gas_processing_batch(grs_vol, shrink_init, mol_pct, ideal_liquid_content, ideal_btu, pct_recovery, pct_pop=None, base_psi=14.65):
+    '''
+    Args:
+        grs_vol: produced wet gas volume in mcf
+        shrink_init: initial shrinkage factor before plant inlet
+        mol_pct: dictionary of molar fractions of the gas for each component
+        ideal_liquid_content: dictionary of ideal liquid content in scf per gallon for each component
+        ideal_btu: dictionary of ideal Btu content in Btu/scf for each component
+        pct_recovery: dictionary of ngl recovery as a decimal for each component
+        pct_pop: dictionary of percentage of proceeds the producer keeps as a decimal. Typically in lieu of a processing fee if less than 1.
+        base_psi: base pressure in psia as base for the calculations
+
+    Returns a dictionary of results for each component:
+        recovered_gals: NGL gallons recovered by the plant
+        settlement_gals: NGL gallons settled by the plant
+        wet_btu: Btu content of gas at the plant inlet in Btu/scf
+        extracted_btu: Btu content extracted from the inlet gas from processing in Btu/scf
+        residue_btu: Btu content of the gas at the plant outlet in Btu/scf
+    '''
+    # Initialize dictionary to store results
+    results = {}
+
+    # Loop through each component and calculate results
+    for component, mol in mol_pct.items():
+        liq_cont = ideal_liquid_content.get(component, 0.0)
+        btu_cont = ideal_btu.get(component, 0.0)
+        pct_rec = pct_recovery.get(component, 0.0)
+        pop_frac = (pct_pop or {}).get(component, 1.0)
+
+        recovered_gals, wet_btu, extracted_btu, reduced_mol_pct = gas_processing(
+            grs_vol, 
+            shrink_init, 
+            mol, 
+            liq_cont, 
+            btu_cont, 
+            pct_rec, 
+            base_psi
+        )
+
+        # Store results in the dictionary
+        results[component] = {
+            'recovered_gals': recovered_gals,
+            'settlement_gals': recovered_gals * pop_frac,
+            'wet_btu': wet_btu,
+            'extracted_btu': extracted_btu,
+            'reduced_mol_pct': reduced_mol_pct,
+            'btu_cont': btu_cont
+        }
+    
+    # Sum results for reduced_mol_pct for all components
+    total_reduced_mol_pct = sum(v['reduced_mol_pct'] for v in results.values())
+
+    # Calculate residue btu for each component and append to results
+    for comp, val in results.items():
+        val['residue_btu'] = val['reduced_mol_pct'] / total_reduced_mol_pct * val['btu_cont'] * base_psi / 14.696
+        val.pop('reduced_mol_pct', None)
+        val.pop('btu_cont', None)
+
+    return results
