@@ -4,6 +4,7 @@ setup(
     name='AnalysisAndDBScripts',
     version='0.94',
     packages=find_packages(),
+    python_requires='>=3.9',
     install_requires=[
         'numpy',
         'pandas',
@@ -29,4 +30,8 @@ setup(
     author='Jacob Shumway',
     author_email='jshumway0475@gmail.com',
     description='A collection of geospatial, database, oil and gas production forecasting, fluid property, material balance, and discounted cash flow functions.',
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
+    url='https://github.com/jshumway0475/Petroleum',
+    license='MIT',
 )

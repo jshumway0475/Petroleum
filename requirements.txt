@@ -1,57 +1,74 @@
+# === Core scientific stack ===
 numpy
 pandas
 scipy
-requests
-sqlalchemy
-pyodbc
-psycopg2-binary
-geopandas
-shapely
-pyproj
-fiona
-rasterio
-rtree
-folium
-branca
-geopy
 matplotlib
 seaborn
 plotly
-statsmodels
+tqdm
+openpyxl
+lxml
+
+# === Machine learning and statistics ===
 scikit-learn
-ruptures
 xgboost
 shap
 joblib
-jupyter_contrib_nbextensions
-jupyter_nbextensions_configurator
-jupyterthemes
-ipywidgets
-jupyterlab
-qgrid
-voila
-ipython
-line_profiler
-memory_profiler
-autopep8
-flake8
-pre-commit
-tqdm
-lxml
-dash
-streamlit
-taipy
-openpyxl
-petbox_dca
-fastapi
-uvicorn
-spotfire
+statsmodels
+ruptures
+
+# === Probabilistic modeling ===
 pymc
 aesara
 arviz
 jax
 blackjax
 numba
-dask[complete]
+
+# === Geospatial analysis ===
+geopandas
+shapely
+pyproj
+fiona
+rasterio
+rtree
+geopy
+folium
+branca
 dask_geopandas
+
+# === Dask & parallel processing ===
+dask[complete]
 loky
+
+# === Data I/O and database connectivity ===
+requests
+sqlalchemy
+pyodbc
+psycopg2-binary
+yfinance
+
+# === Web & UI apps ===
+dash
+streamlit
+voila
+qgrid
+ipywidgets
+
+# === Jupyter environment ===
+jupyterlab
+jupyterthemes
+jupyter_contrib_nbextensions
+jupyter_nbextensions_configurator
+ipython
+
+# === Code quality and dev tools ===
+autopep8
+flake8
+black
+pre-commit
+line_profiler
+memory_profiler
+
+# === Custom or external packages ===
+petbox_dca
