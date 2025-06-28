@@ -46,7 +46,7 @@ VS Code will now:
 
 ---
 
-## 🐳 Using the Docker Image Directly
+## 🚣 Using the Docker Image Directly
 
 If you're not using VS Code, you can pull and run the image directly:
 
@@ -60,11 +60,13 @@ Then run it:
 docker run -it --rm -v ${PWD}:/workspace -w /workspace jshumway0475/playinsight-image python3
 ```
 
-This drops you into a clean environment with all required dependencies.
+This launches a clean, fully configured environment with all required dependencies pre-installed.
+
+**Note:** The container uses a non-root user (`appuser`) with passwordless sudo access. You will not be prompted for a password when installing additional packages or running privileged commands inside the container.
 
 ---
 
-## 🧐 Running the Workflow
+## 🤔 Running the Workflow
 
 Once inside the container (via VS Code or Docker):
 
@@ -79,10 +81,10 @@ Once inside the container (via VS Code or Docker):
    ```
 
 3. **Populate your database**
-   Use the scripts in `sql/` to create tables, stored procedures, and views.
+   Use the scripts in the `sql/` folder to create tables, stored procedures, and views.
 
 4. **Connect to Spotfire or another BI tool**
-   Use the views created by the SQL scripts to visualize parent-child assignments, forecasts, spacing, etc.
+   Use the SQL views created to visualize spacing, parent-child relationships, forecasts, etc.
 
 ---
 
@@ -101,5 +103,3 @@ Ctrl+Shift+P → Dev Containers: Rebuild Container
 If you encounter issues or need support, contact:
 
 📧 [jshumway0475@gmail.com](mailto:jshumway0475@gmail.com)
-
----
