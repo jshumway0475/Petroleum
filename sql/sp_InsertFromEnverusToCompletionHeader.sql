@@ -110,16 +110,17 @@ BEGIN
 		[IHS_WellId]
 	)
 	SELECT      E.CompletionID, E.WellID, E.UWI12 AS API_UWI_12_Unformatted, E.UWI14 AS API_UWI_14_Unformatted, COALESCE(O.Interval, E.Interval) AS Interval, 
-				COALESCE(O.Formation, E.Formation) AS Formation, O.TargetLithology, E.UpperPerf_FT, E.LowerPerf_FT, E.PerfInterval_FT, E.TopOfZone_FT, 
-				E.BottomOfZone_FT, ABS(COALESCE(O.TVD_FT, E.TVD_FT) - E.BottomOfZone_FT) AS DistFromBaseZone_FT, ABS(COALESCE(O.TVD_FT, E.TVD_FT) - E.TopOfZone_FT) AS DistFromTopZone_FT, 
-				COALESCE(O.PermitApprovedDate, E.PermitApprovedDate) AS PermitApprovedDate, E.CompletionDate, COALESCE(O.FirstProdDate, E.FirstProdDate) AS FirstProdDate, 
-				E.CompletionDesign, COALESCE(O.FracJobType, E.FracJobType) AS FracJobType, E.ProppantType, E.WellServiceProvider, COALESCE(O.Proppant_LBS, E.Proppant_LBS) AS Proppant_LBS, 
-				COALESCE(O.TotalFluidPumped_BBL, E.TotalFluidPumped_BBL) AS TotalFluidPumped_BBL, COALESCE(O.FracStages, E.FracStages) AS FracStages, O.TotalClusters, 
-				O.AvgTreatmentPressure_PSI, O.AvgTreatmentRate_BBLPerMin, E.OilTestRate_BBLPerDAY, E.GasTestRate_MCFPerDAY, E.WaterTestRate_BBLPerDAY, O.TestFTP_PSI, 
-				O.TestFCP_PSI, E.ChokeSize_64IN AS TestChokeSize_64IN, O.ReservoirPressure_PSI, COALESCE(O.Bottom_Hole_Temp_DEGF, E.BottomHoleTemp_DEGF) AS Bottom_Hole_Temp_DEGF, 
-				COALESCE(O.Isopach_FT, E.Isopach_FT) AS Isopach_FT, COALESCE(O.EffectivePorosity_PCT, E.EffectivePorosity_PCT) AS EffectivePorosity_PCT, 
-				COALESCE(O.WaterSaturation_PCT, E.WaterSaturation_PCT) AS WaterSaturation_PCT, COALESCE(O.OilGravity_API, E.OilGravity_API) AS OilGravity_API, 
-				COALESCE(O.GasGravity_SG, E.GasGravity_SG) AS GasGravity_SG, COALESCE(O.DataSource, 'ENVERUS') AS DataSource, GETDATE() AS DateCreated, E.UpdatedDate, O.SubInterval,
+				COALESCE(O.Formation, E.Formation) AS Formation, O.TargetLithology, E.UpperPerf_FT, E.LowerPerf_FT, E.PerfInterval_FT, COALESCE(O.TopOfZone_FT, E.TopOfZone_FT), 
+				COALESCE(O.BottomOfZone_FT, E.BottomOfZone_FT), ABS(COALESCE(O.TVD_FT, E.TVD_FT) - COALESCE(O.BottomOfZone_FT, E.BottomOfZone_FT)) AS DistFromBaseZone_FT, 
+				ABS(COALESCE(O.TVD_FT, E.TVD_FT) - E.TopOfZone_FT) AS DistFromTopZone_FT, COALESCE(O.PermitApprovedDate, E.PermitApprovedDate) AS PermitApprovedDate, 
+				E.CompletionDate, COALESCE(O.FirstProdDate, E.FirstProdDate) AS FirstProdDate, E.CompletionDesign, COALESCE(O.FracJobType, E.FracJobType) AS FracJobType, 
+				E.ProppantType, E.WellServiceProvider, COALESCE(O.Proppant_LBS, E.Proppant_LBS) AS Proppant_LBS, COALESCE(O.TotalFluidPumped_BBL, E.TotalFluidPumped_BBL) AS TotalFluidPumped_BBL, 
+				COALESCE(O.FracStages, E.FracStages) AS FracStages, O.TotalClusters, O.AvgTreatmentPressure_PSI, O.AvgTreatmentRate_BBLPerMin, E.OilTestRate_BBLPerDAY, 
+				E.GasTestRate_MCFPerDAY, E.WaterTestRate_BBLPerDAY, O.TestFTP_PSI, O.TestFCP_PSI, E.ChokeSize_64IN AS TestChokeSize_64IN, O.ReservoirPressure_PSI, 
+				COALESCE(O.Bottom_Hole_Temp_DEGF, E.BottomHoleTemp_DEGF) AS Bottom_Hole_Temp_DEGF, COALESCE(O.Isopach_FT, E.Isopach_FT) AS Isopach_FT, 
+				COALESCE(O.EffectivePorosity_PCT, E.EffectivePorosity_PCT) AS EffectivePorosity_PCT, COALESCE(O.WaterSaturation_PCT, E.WaterSaturation_PCT) AS WaterSaturation_PCT, 
+				COALESCE(O.OilGravity_API, E.OilGravity_API) AS OilGravity_API, COALESCE(O.GasGravity_SG, E.GasGravity_SG) AS GasGravity_SG, COALESCE(O.DataSource, 'ENVERUS') AS DataSource, 
+				GETDATE() AS DateCreated, E.UpdatedDate, O.SubInterval,
 				X._WellId
 	FROM        Enverus.dbo.Core_Well E
 	INNER JOIN	(SELECT WellID FROM Analytics.dbo.WELL_HEADER) W

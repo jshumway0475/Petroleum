@@ -1,4 +1,4 @@
-USE [Axia_Analytics_Aries]
+USE [Analytics_Aries]
 GO
 
 /****** Object:  StoredProcedure [dbo].[sp_CreateUpdateEconLines]    Script Date: 10/21/2024 10:32:52 AM ******/
@@ -14,11 +14,11 @@ CREATE OR ALTER     PROCEDURE [dbo].[sp_CreateUpdateEconLines]
 AS
 BEGIN
 	-- Include name of the pricing sidefile
-	DECLARE @STRIP_FILENAME VARCHAR(80) = 'STR092024'
+	DECLARE @STRIP_FILENAME VARCHAR(80) = 'STR042325'
     
 	-- Delete existing data from AC_ECONOMIC
     DELETE FROM dbo.AC_ECONOMIC
-    WHERE (SECTION NOT IN (4, 7) AND QUALIFIER = 'AXIA') 
+    WHERE (SECTION NOT IN (4, 7) AND QUALIFIER = 'PRIMARY_ANALYST') 
        OR (SECTION = 7 AND QUALIFIER IN ('OP', 'MIN'));
 
     -- Insert new data into AC_ECONOMIC
@@ -33,45 +33,47 @@ BEGIN
     FROM 
         AC_PROPERTY P
     CROSS JOIN 
-        (SELECT '2' AS SECTION, '10' AS SEQUENCE, 'AXIA' AS QUALIFIER, 'BTU' AS KEYWORD, '@ED.BTU' AS EXPRESSION
+        (SELECT '2' AS SECTION, '10' AS SEQUENCE, 'PRIMARY_ANALYST' AS QUALIFIER, 'BTU' AS KEYWORD, '@ED.BTU' AS EXPRESSION
          UNION ALL
-         SELECT '2', '20', 'AXIA', 'SHRINK', '@ED.SHRINK'
+         SELECT '2', '20', 'PRIMARY_ANALYST', 'SHRINK', '@ED.SHRINK'
          UNION ALL
-         SELECT '2', '30', 'AXIA', 'ELOSS', 'OPINC 0 NOH P 1'
+         SELECT '2', '30', 'PRIMARY_ANALYST', 'ELOSS', 'OPINC 0 NOH P 1'
          UNION ALL
-         SELECT '2', '40', 'AXIA', 'OPNET', '@ED.LSE_ROY*-1+100 @ED.LSE_ROY*-1+100'
+         SELECT '2', '40', 'PRIMARY_ANALYST', 'OPNET', '@ED.LSE_ROY*-1+100 @ED.LSE_ROY*-1+100'
          UNION ALL
-         SELECT '2', '50', 'AXIA', 'INVWT', '@ED.INV_WEIGHT'
+         SELECT '2', '50', 'PRIMARY_ANALYST', 'INVWT', '@ED.INV_WEIGHT'
          UNION ALL
-         SELECT '2', '60', 'AXIA', 'XINVWT', '@ED.PROD_WEIGHT'
+         SELECT '2', '60', 'PRIMARY_ANALYST', 'XINVWT', '@ED.PROD_WEIGHT'
+		 UNION ALL
+		 SELECT '2', '70', 'PRIMARY_ANALYST', 'ABANDON', '36 MOS'
          UNION ALL
-         SELECT '5', '10', 'AXIA', 'SIDEFILE', @STRIP_FILENAME
+         SELECT '5', '10', 'PRIMARY_ANALYST', 'SIDEFILE', @STRIP_FILENAME
          UNION ALL
-         SELECT '5', '20', 'AXIA', 'PAJ/OIL', '@ED.PAJ_OIL_VAL X $/B TO LIFE PC 0'
+         SELECT '5', '20', 'PRIMARY_ANALYST', 'PAJ/OIL', '@ED.PAJ_OIL_VAL X $/B TO LIFE PC 0'
          UNION ALL
-         SELECT '5', '30', 'AXIA', 'PAJ/GAS', '@ED.PAJ_GAS_VAL X $/M TO LIFE PC 0'
+         SELECT '5', '30', 'PRIMARY_ANALYST', 'PAJ/GAS', '@ED.PAJ_GAS_VAL X $/M TO LIFE PC 0'
          UNION ALL
-         SELECT '5', '40', 'AXIA', 'PAJ/NGL', '@ED.PAJ_NGL_FRAC X FRAC TO LIFE PC 0'
+         SELECT '5', '40', 'PRIMARY_ANALYST', 'PAJ/NGL', '@ED.PAJ_NGL_FRAC X FRAC TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '10', 'AXIA', 'OPC/T', '@ED.OPC1_FIXED X $/M @ED.OPC1_DATE AD PC 0'
+         SELECT '6', '10', 'PRIMARY_ANALYST', 'OPC/T', '@ED.OPC1_FIXED X $/M @ED.OPC1_DATE AD PC 0'
          UNION ALL
-         SELECT '6', '20', 'AXIA', '"', '@ED.OPC2_FIXED X $/M TO LIFE PC 0'
+         SELECT '6', '20', 'PRIMARY_ANALYST', '"', '@ED.OPC2_FIXED X $/M TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '30', 'AXIA', 'OPC/OIL', '@ED.OPC_OIL X $/B TO LIFE PC 0'
+         SELECT '6', '30', 'PRIMARY_ANALYST', 'OPC/OIL', '@ED.OPC_OIL X $/B TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '40', 'AXIA', 'OPC/GAS', '@ED.OPC_GAS X $/M TO LIFE PC 0'
+         SELECT '6', '40', 'PRIMARY_ANALYST', 'OPC/GAS', '@ED.OPC_GAS X $/M TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '50', 'AXIA', 'OPC/WTR', '@ED.OPC_WTR X $/B TO LIFE PC 0'
+         SELECT '6', '50', 'PRIMARY_ANALYST', 'OPC/WTR', '@ED.OPC_WTR X $/B TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '60', 'AXIA', 'STX/OIL', '@ED.STX_OIL X % TO LIFE PC 0'
+         SELECT '6', '60', 'PRIMARY_ANALYST', 'STX/OIL', '@ED.STX_OIL X % TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '70', 'AXIA', 'STX/GAS', '@ED.STX_GAS X % TO LIFE PC 0'
+         SELECT '6', '70', 'PRIMARY_ANALYST', 'STX/GAS', '@ED.STX_GAS X % TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '80', 'AXIA', 'STX/NGL', '@ED.STX_NGL X % TO LIFE PC 0'
+         SELECT '6', '80', 'PRIMARY_ANALYST', 'STX/NGL', '@ED.STX_NGL X % TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '90', 'AXIA', 'ATX', '@ED.ATX X % TO LIFE PC 0'
+         SELECT '6', '90', 'PRIMARY_ANALYST', 'ATX', '@ED.ATX X % TO LIFE PC 0'
          UNION ALL
-         SELECT '6', '100', 'AXIA', 'ABAN', '@ED.CAPEX_ABAN X M$/M TO LIFE PC 0'
+         SELECT '6', '100', 'PRIMARY_ANALYST', 'ABAN', '@ED.CAPEX_ABAN X M$/M TO LIFE PC 0'
          UNION ALL
          SELECT '7', '10', 'OP', 'NET', '@ED.WI @ED.LSE_ROY*-1+100 @ED.LSE_ROY*-1+100 %'
          UNION ALL
@@ -79,11 +81,11 @@ BEGIN
          UNION ALL
          SELECT '7', '30', 'MIN', 'OWN', '0.0 0.0 100.0 0 %'
          UNION ALL
-         SELECT '8', '10', 'AXIA', 'CAPITAL', '@ED.CAPEX_DCE*0.3 @ED.CAPEX_DCE*0.7 G @M.FIRST_PROD AD PC 0'
+         SELECT '8', '10', 'PRIMARY_ANALYST', 'CAPITAL', '@ED.CAPEX_DCE*0.3 @ED.CAPEX_DCE*0.7 G @M.FIRST_PROD AD PC 0'
          UNION ALL
-         SELECT '8', '20', 'AXIA', 'CAPITAL', '@ED.CAPEX_AL*0.5 @ED.CAPEX_AL*0.5 G @ED.OPC1_DATE AD PC 0'
+         SELECT '8', '20', 'PRIMARY_ANALYST', 'CAPITAL', '@ED.CAPEX_AL*0.5 @ED.CAPEX_AL*0.5 G @ED.OPC1_DATE AD PC 0'
          UNION ALL
-         SELECT '9', '10', 'AXIA', 'NGL/GAS', '@ED.NGL_YIELD X B/MM TO LIFE LIN TIME'
+         SELECT '9', '10', 'PRIMARY_ANALYST', 'NGL/GAS', '@ED.NGL_YIELD X B/MM TO LIFE LIN TIME'
     ) AS ExampleData;
 END;
 GO
