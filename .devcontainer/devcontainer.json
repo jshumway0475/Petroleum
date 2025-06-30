@@ -1,16 +1,19 @@
 {
-  "name": "petroleum-dev",
+  "name": "playinsight-dev",
   "build": {
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash",
-    "python.defaultInterpreterPath": "/workspaces/petroleum/.venv/bin/python",
+    "python.defaultInterpreterPath": "/home/appuser/.venv/bin/python",
     "python.formatting.provider": "black",
     "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true
+    "python.linting.flake8Enabled": true,
+    "python.envFile": "${workspaceFolder}/.env"
   },
+  "runEnvFile": ".env",
+  "mounts": ["source=${localEnv:LOCAL_PROJECTS_PATH},target=/workspace/local_projects,type=bind"],
   "extensions": [
     "ms-python.python",
     "ms-toolsai.jupyter",
@@ -19,6 +22,6 @@
     "ms-python.black-formatter",
     "esbenp.prettier-vscode"
   ],
-  "workspaceFolder": "/workspaces/petroleum",
-  "postCreateCommand": "cd /workspaces/petroleum && python3 -m venv .venv && . .venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -e . ipykernel"
+  "workspaceFolder": "/workspaces/conduit",
+  "postCreateCommand": "pip install --no-cache-dir -e . && pip install ipykernel && python -m ipykernel install --user --name conduit --display-name 'Python (playinsight)'"
 }
