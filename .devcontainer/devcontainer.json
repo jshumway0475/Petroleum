@@ -1,12 +1,12 @@
 {
-  "name": "petroleum-dev",
+  "name": "conduit-dev",
   "build": {
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash",
-    "python.defaultInterpreterPath": "/usr/bin/python3",
+    "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
     "python.formatting.provider": "black",
     "python.linting.enabled": true,
     "python.linting.flake8Enabled": true
@@ -20,8 +20,5 @@
     "esbenp.prettier-vscode"
   ],
   "workspaceFolder": "/workspace",
-  "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind"
-  ],
-  "postCreateCommand": "pip install --no-cache-dir -e ."
+  "postCreateCommand": "python3 -m venv /workspace/.venv && . /workspace/.venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -e ."
 }
