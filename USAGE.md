@@ -66,10 +66,48 @@ VS Code will now:
 ```bash
 pip install --no-cache-dir -e .
 ```
+VS Code will automatically detect and use the `.venv` environment.
 
 ---
 
-## 🐳 Running the Docker Image Without VS Code (Optional)
+## 🛠 Optional: Add a `devcontainer.local.json` for Personal Customization
+
+To avoid editing the shared `devcontainer.json` (which is version-controlled), you can create a `devcontainer.local.json` file in the `.devcontainer/` folder. This allows you to override settings like mounts or environment variables without affecting other users.
+
+This approach is especially useful when you want to bind your own local development folder to the container’s `/workspace` directory.
+
+---
+
+### ✅ Why Use `devcontainer.local.json`?
+
+- Keeps machine-specific configuration out of version control  
+- Lets each user define their own mount paths or environment settings  
+- VS Code automatically merges it with `devcontainer.json`, giving priority to local values  
+
+---
+
+### 📁 Example: `.devcontainer/devcontainer.local.json`
+
+<pre><code>{
+  "mounts": [
+    "source=/mnt/c/projects,target=/workspace,type=bind"
+  ]
+}
+</code></pre>
+
+💡 Replace `/mnt/c/projects` with the full path to your local development folder.  
+For example, on Windows using WSL: `/mnt/c/Users/yourname/your-folder`.
+
+---
+
+### 🔄 How It Works
+
+VS Code automatically merges `devcontainer.local.json` with `devcontainer.json`.  
+Any setting you define locally (like mounts or environment variables) will override the shared settings, without changing anything in the repository.
+
+This allows each team member to configure their environment as needed — without creating merge conflicts or leaking machine-specific paths into version control.
+
+## 🐳 Optional: Run the Docker Image Without VS Code
 
 If you're not using VS Code, you can pull and run the image directly:
 
@@ -86,7 +124,7 @@ docker run -it --rm -v $(pwd):/workspace -w /workspace jshumway0475/playinsight-
 💡 If you're using PowerShell or CMD on Windows, replace `$(pwd)` with the full path to your project directory, like:
 
 ```powershell
--v C:/Users/yourname/projects/conduit:/workspace
+-v C:/Users/yourname/projects/Petroleum:/workspace
 ```
 
 This launches a clean, fully configured environment with all required dependencies pre-installed.
