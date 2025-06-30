@@ -4,19 +4,41 @@ This document explains how to run the PlayInsight Suite using Docker and Visual 
 
 ---
 
+## 🍴 Fork & Clone
+
+1. On GitHub, click **Fork** (upper-right) to create your own copy under your account.
+
+2. Clone your fork locally:
+
+   ```bash
+   git clone https://github.com/<your-username>/playinsight.git
+   cd playinsight
+   ```
+
+3. Add the upstream remote so you can pull in future fixes:
+
+   ```bash
+   git remote add upstream https://github.com/jshumway0475/Petroleum.git
+   git fetch upstream
+   ```
+
+---
+
 ## 🔧 Prerequisites
 
 Make sure the following tools are installed on your system:
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- [Visual Studio Code](https://code.visualstudio.com/)
-- [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/) with Ubuntu installed  
-  - Recommended for Windows users who want to work in a Linux terminal  
-  - Ensure you've installed Ubuntu from the Microsoft Store and set it as your default WSL distro
-- VS Code Extensions:
-  - Remote - Containers (aka Dev Containers)
-  - Python
-  - Docker
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+* [Visual Studio Code](https://code.visualstudio.com/)
+* [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/) with Ubuntu installed
+
+  * Recommended for Windows users who want to work in a Linux terminal
+  * Ensure you've installed Ubuntu from the Microsoft Store and set it as your default WSL distro
+* VS Code Extensions:
+
+  * Remote - Containers (aka Dev Containers)
+  * Python
+  * Docker
 
 ---
 
@@ -30,23 +52,46 @@ Choose or create a local folder where you keep code projects.
 
 ```bash
 cd /mnt/c/projects     # or your preferred folder
-git clone https://github.com/jshumway0475/Petroleum.git
-cd Petroleum
+git clone https://github.com/<your-username>/playinsight.git
+cd playinsight
 ```
 
 **If using Git in Windows PowerShell or CMD:**
 
 ```powershell
 cd C:\projects
-git clone https://github.com/jshumway0475/Petroleum.git
-cd Petroleum
+git clone https://github.com/<your-username>/playinsight.git
+cd playinsight
 ```
 
-### 2. Open the Folder in VS Code
+### 2. Set Local Projects Path Environment Variable
 
-In VS Code, go to File → Open Folder, and select the `Petroleum` directory you just cloned.
+Set an environment variable on your host machine pointing to your full path:
 
-### 3. Reopen in Dev Container
+#### On PowerShell:
+
+```powershell
+$env:LOCAL_PROJECTS_PATH = "C:\Users\yourname\your-folder"
+```
+
+#### On WSL/Linux:
+
+```bash
+export LOCAL_PROJECTS_PATH="/mnt/c/Users/yourname/your-folder"
+```
+
+#### Optional: Add to your shell profile to persist it:
+
+```bash
+echo 'export LOCAL_PROJECTS_PATH="/mnt/c/Users/yourname/your-folder"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 3. Open the Folder in VS Code
+
+In VS Code, go to File → Open Folder, and select the `playinsight` directory you just cloned.
+
+### 4. Reopen in Dev Container
 
 You should be prompted to "Reopen in Container". Click Yes.
 
@@ -58,15 +103,30 @@ Dev Containers: Reopen in Container
 
 VS Code will now:
 
-- Build the Docker image
-- Mount your code into the container
-- Create a local virtual environment at `.venv`
-- Install the project in editable mode using:
+* Build the Docker image
+* Mount your code into the container
+* Create a local virtual environment at `.venv`
+* Install the project in editable mode using:
 
 ```bash
 pip install --no-cache-dir -e .
 ```
+
 VS Code will automatically detect and use the `.venv` environment.
+
+---
+
+## 🔄 Syncing with Upstream
+
+Whenever you want the latest from the main repo:
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+# resolve conflicts if any, then:
+git push origin main
+```
 
 ---
 
@@ -80,32 +140,41 @@ This approach is especially useful when you want to bind your own local developm
 
 ### ✅ Why Use `devcontainer.local.json`?
 
-- Keeps machine-specific configuration out of version control  
-- Lets each user define their own mount paths or environment settings  
-- VS Code automatically merges it with `devcontainer.json`, giving priority to local values  
+* Keeps machine-specific configuration out of version control
+* Lets each user define their own mount paths or environment settings
+* VS Code automatically merges it with `devcontainer.json`, giving priority to local values
 
 ---
 
 ### 📁 Example: `.devcontainer/devcontainer.local.json`
 
-<pre><code>{
+```json
+{
   "mounts": [
     "source=/mnt/c/projects,target=/workspace,type=bind"
   ]
 }
-</code></pre>
+```
 
-💡 Replace `/mnt/c/projects` with the full path to your local development folder.  
+💡 Replace `/mnt/c/projects` with the full path to your local development folder.
 For example, on Windows using WSL: `/mnt/c/Users/yourname/your-folder`.
 
 ---
 
-### 🔄 How It Works
+## 🔐 Per-Machine Config Overrides
 
-VS Code automatically merges `devcontainer.local.json` with `devcontainer.json`.  
-Any setting you define locally (like mounts or environment variables) will override the shared settings, without changing anything in the repository.
+Drop any sensitive or machine-specific settings into a file that’s already in `.gitignore`, for example:
 
-This allows each team member to configure their environment as needed — without creating merge conflicts or leaking machine-specific paths into version control.
+```yaml
+# config/analytics_config.local.yaml
+ db_host: mydb.example.com
+ db_user: alice
+ db_pass: secret
+```
+
+Your scripts or loaders will look for `analytics_config.local.yaml` first, then fall back to the checked-in defaults.
+
+---
 
 ## 🐳 Optional: Run the Docker Image Without VS Code
 
@@ -124,7 +193,7 @@ docker run -it --rm -v $(pwd):/workspace -w /workspace jshumway0475/playinsight-
 💡 If you're using PowerShell or CMD on Windows, replace `$(pwd)` with the full path to your project directory, like:
 
 ```powershell
--v C:/Users/yourname/projects/Petroleum:/workspace
+-v C:/Users/yourname/projects/playinsight:/workspace
 ```
 
 This launches a clean, fully configured environment with all required dependencies pre-installed.
@@ -137,20 +206,20 @@ Note: The container uses a non-root user (`appuser`) with passwordless sudo acce
 
 Once inside the container (via VS Code or Docker):
 
-1. **Edit the config**  
+1. **Edit the config**
    Modify `config/analytics_config.yaml` with your database connection info and default parameters.
 
-2. **Run workflows manually or on a schedule**  
+2. **Run workflows manually or on a schedule**
    Example:
 
    ```bash
    python play_assessment_tools/arps_autofit.py
    ```
 
-3. **Populate your database**  
+3. **Populate your database**
    Use the scripts in the `sql/` folder to create tables, stored procedures, and views.
 
-4. **Connect to Spotfire or another BI tool**  
+4. **Connect to Spotfire or another BI tool**
    Use the SQL views created to visualize spacing, parent-child relationships, forecasts, etc.
 
 ---
@@ -159,7 +228,7 @@ Once inside the container (via VS Code or Docker):
 
 If you change `requirements.txt` or `Dockerfile`, rebuild the container by running:
 
-```
+```bash
 Ctrl+Shift+P → Dev Containers: Rebuild Container
 ```
 
