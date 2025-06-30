@@ -1,5 +1,5 @@
 {
-  "name": "conduit-dev",
+  "name": "petroleum-dev",
   "build": {
     "dockerfile": "../Dockerfile",
     "context": ".."
@@ -20,5 +20,5 @@
     "esbenp.prettier-vscode"
   ],
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "python3 -m venv /workspace/.venv && . /workspace/.venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -e ."
+  "postCreateCommand": "python3 -m venv /workspace/.venv && . /workspace/.venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -e . ipykernel"
 }
