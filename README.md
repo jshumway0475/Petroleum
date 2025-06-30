@@ -4,90 +4,104 @@
 
 ## Introduction
 
-PlayInsight Suite is a Python-based toolkit designed to accelerate oil and gas property evaluations by automating key technical workflows. It provides fast, scalable calculations for well spacing, parent-child relationship identification, production forecasting using Arps models, and discounted cash flow analysis. PlayInsight integrates seamlessly with analytics databases, enabling engineers, analysts, and asset teams to handle large datasets efficiently and make informed economic decisions across unconventional resource plays. The recommended usage involves integrating the application with a Data Warehouse containing Well and Production data. The workflow enabled by the application includes:
+PlayInsight Suite is a Python-based toolkit designed to accelerate oil and gas property evaluations by automating key technical workflows. It provides fast, scalable calculations for:
 
-1. Calculation of 2D distances between horizontal wells
-2. Identification of parent-child relationships based on well spacing calculations
-3. Production forecasting using Arps hyperbolic, harmonic, and exponential models
-4. Calculation of future cash flow streams based on production forecasts, including discounted cash flow analysis
+- Well spacing and 2D distance analysis
+- Parent-child relationship identification
+- Arps production forecasting (hyperbolic, harmonic, exponential)
+- Discounted cash flow (DCF) economic evaluation
 
-## Repository Guide
+PlayInsight integrates seamlessly with analytics databases, enabling engineers, analysts, and asset teams to handle large datasets and drive decisions in unconventional resource plays.
 
-This repository consists of the following folders/files:
+---
 
-### AnalysisAndDBScripts
+## Repository Overview
 
-Python files that contain the core logic associated with the PlayInsight Suite:
+This repository includes:
 
-* `__init__.py`: Initializes the code within this folder
-* `dcf_functions.py`: Functions related to future cash flow and discounted cash flow calculations
-* `fluid_properties.py`: Functions used to calculate oil and gas fluid properties
-* `geo_functions.py`: Functions used to derive values from geologic grids
-* `prod_fcst_functions.py`: Logic related to forecasting oil and gas time-series production data
-* `sql_connect.py`: Helper functions used to interact with MS SQL Server databases
-* `sql_schemas.py`: MS SQL Server database table schemas recommended for use with the PlayInsight Suite
-* `well_spacing.py`: Functions related to the calculation of well spacing and parent-child relationships between wells
+### `AnalysisAndDBScripts/`
 
-### config
+Core modules implementing the PlayInsight workflows:
 
-* `__init__.py`: Initializes the code within this folder
-* `config_loader.py`: Enables the usage of the YAML file within this folder
-* `analytics_config.yaml`: Contains user-defined parameters and defaults that are arguments to the functions in the `AnalysisAndDBScripts` folder
+- `dcf_functions.py`: Future cash flow and DCF calculations
+- `fluid_properties.py`: Oil and gas fluid property calculations
+- `geo_functions.py`: Sampling from geologic grids
+- `prod_fcst_functions.py`: Arps-based production forecasting
+- `sql_connect.py`: Helpers for MS SQL Server interaction
+- `sql_schemas.py`: Sample SQL schema for use with the suite
+- `well_spacing.py`: 2D spacing and parent-child logic
 
-### data/grids
+### `config/`
 
-Folder with some example files that can be used with the config.
+Configuration system for customizing workflows:
 
-### play\_assessment\_tools
+- `analytics_config.yaml`: Stores all user-defined settings
+- `config_loader.py`: Helper to load config in Python
 
-A collection of data transformations based on the functions in the `AnalysisAndDBScripts` folder, representing the complete workflow intended by the PlayInsight Suite.
+### `data/grids/`
 
-* Python files:
+Example geologic grids to test grid sampling functions.
 
-  * `arps_autofit.py`: Complete workflow needed to forecast oil and gas production data
-  * `parent_child_assignments.py`: Calculates parent-child relationships between horizontal wells
-  * `well_spacing_calcs.py`: Calculates 2D distances between horizontal wells within a user-defined distance
-  * `update_geology.py`: Samples geologic grids to extract values and associate those values with wells
-* Jupyter Notebooks: A collection of notebooks used for testing and product development, not likely to be included in the final production of PlayInsight.
+### `play_assessment_tools/`
 
-### spotfire\_utils
+End-to-end pipeline scripts for applying spacing, forecasting, and analysis:
 
-A collection of CSS scripts, Python data functions, and IronPython scripts that can be used to create a GUI using Spotfire to interact with the PlayInsight Suite.
+- `arps_autofit.py`: Fit Arps models to production data
+- `parent_child_assignments.py`: Determine parent-child well relationships
+- `well_spacing_calcs.py`: Measure inter-well spacing
+- `update_geology.py`: Associate wells with geologic data
+- Jupyter notebooks used during prototyping and development
 
-### sql
+### `spotfire_utils/`
 
-SQL scripts that serve as a working example of the Data Warehouse needed for the PlayInsight Suite. Includes:
+Scripts and helpers (CSS, IronPython, data functions) to build a GUI in TIBCO Spotfire.
 
-* Scripts to create the Data Warehouse
-* Stored procedures to populate the Data Warehouse
-* Views to enable the Spotfire UI
+### `sql/`
 
-### devcontainer (optional)
+Example SQL scripts for building and populating a data warehouse compatible with PlayInsight.
 
-For users of Visual Studio Code and Docker, the `.devcontainer` folder includes configuration to automatically spin up a working development environment:
+- Table creation scripts
+- Stored procedures
+- SQL views to power analytics dashboards
 
-* `Dockerfile`: Instructions to build the environment
-* `devcontainer.json`: Configuration for VS Code Remote Containers support
+### `devcontainer/` (Optional)
+
+VS Code Remote - Containers configuration:
+
+- `Dockerfile`: Python + dependencies environment
+- `devcontainer.json`: VS Code configuration
+
+Using this is **optional**, but highly recommended for contributors and power users.
+
+---
 
 ## Other Files
 
-* `.gitignore`: Instructs Git on the maintenance of the repository
-* `setup.py`: Manages import and versioning of the files in this repository
-* `Dockerfile`: Instructions to create a Docker image containing the Python environment from which the PlayInsight Suite can be deployed
-* `requirements.txt`: Used by the Dockerfile to import the necessary Python libraries to execute the code in the PlayInsight Suite
-* `PlayInsight.pdf`: Presentation explaining the functionality of the PlayInsight Suite
-* `README.md`: This file
-* `USAGE.md`: Step-by-step instructions to run the software, either with or without Docker
+- `requirements.txt`: Python libraries required
+- `setup.py`: Installation and module packaging
+- `.gitignore`: Files and folders excluded from version control
+- `Dockerfile`: Standalone image build for manual Docker usage
+- `PlayInsight.pdf`: Overview presentation of core workflows
+- `README.md`: This file
+- `USAGE.md`: Step-by-step instructions for setup and usage
+
+---
 
 ## Getting Started
 
-For full setup and deployment instructions, see [USAGE.md](USAGE.md).
+See [USAGE.md](USAGE.md) for setup instructions, including:
+
+- Cloning the repo
+- Using VS Code with Dev Containers
+- Running analysis pipelines
+- Connecting to SQL and Spotfire
+
+---
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
-
-© 2025 Jay Engineering, LLC.
+This project is licensed under the [MIT License](LICENSE).  
+© 2025 Jay Engineering, LLC.  
 By using this software, you agree to the terms of the license.
 
-For questions or further information, please contact [jshumway0475@gmail.com](mailto:jshumway0475@gmail.com).
+📧 Questions? Contact [jshumway0475@gmail.com](mailto:jshumway0475@gmail.com).
