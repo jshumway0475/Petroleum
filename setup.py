@@ -1,5 +1,10 @@
+import os
 from setuptools import setup, find_packages
 
+this_directory = os.path.abspath(os.path.dirname(__file__))
+with open(os.path.join(this_directory, "README.md"), encoding="utf-8") as f:
+    long_description = f.read()
+    
 setup(
     name='AnalysisAndDBScripts',
     version='0.94',
@@ -30,7 +35,7 @@ setup(
     author='Jacob Shumway',
     author_email='jshumway0475@gmail.com',
     description='A collection of geospatial, database, oil and gas production forecasting, fluid property, material balance, and discounted cash flow functions.',
-    long_description=open("README.md").read(),
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/jshumway0475/Petroleum',
     license='MIT',
