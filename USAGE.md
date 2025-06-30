@@ -11,7 +11,7 @@ Make sure the following tools are installed on your system:
 * [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 * [Visual Studio Code](https://code.visualstudio.com/)
 * [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/) with Ubuntu installed  
-  - Required if you're using Windows and want to work in a Linux-based terminal environment
+  - Recommended for Windows users who want to work in a Linux terminal
   - Ensure you've installed Ubuntu from the Microsoft Store and set it as your default WSL distro
 * VS Code Extensions:
 
@@ -45,11 +45,13 @@ VS Code will now:
 
 * Build the Docker image
 * Mount your code into the container
-* Install the project in editable mode using `pip install -e .`
+* Create a local virtual environment at `.venv`
+* Install the project in editable mode using `pip install --no-cache-dir -e .`
+VS Code will detect and use the `.venv` environment automatically when you open the workspace.
 
 ---
 
-## 🚣 Using the Docker Image Directly
+## 🐳 Running the Docker Image Without VS Code (Optional)
 
 If you're not using VS Code, you can pull and run the image directly:
 
@@ -60,7 +62,7 @@ docker pull jshumway0475/playinsight-image:latest
 Then run it:
 
 ```bash
-docker run -it --rm -v ${PWD}:/workspace -w /workspace jshumway0475/playinsight-image python3
+docker run -it --rm -v $(pwd):/workspace -w /workspace jshumway0475/playinsight-image python3
 ```
 
 This launches a clean, fully configured environment with all required dependencies pre-installed.
