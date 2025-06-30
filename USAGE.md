@@ -10,6 +10,9 @@ Make sure the following tools are installed on your system:
 
 * [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 * [Visual Studio Code](https://code.visualstudio.com/)
+* [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/) with Ubuntu installed  
+  - Required if you're using Windows and want to work in a Linux-based terminal environment
+  - Ensure you've installed Ubuntu from the Microsoft Store and set it as your default WSL distro
 * VS Code Extensions:
 
   * ✅ Remote - Containers (aka Dev Containers)
