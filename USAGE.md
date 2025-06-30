@@ -64,6 +64,7 @@ Then run it:
 ```bash
 docker run -it --rm -v $(pwd):/workspace -w /workspace jshumway0475/playinsight-image python3
 ```
+> 💡 If you're using PowerShell or CMD on Windows, replace `$(pwd)` with the full path to your project directory (e.g., `C:/Users/yourname/foldername`)
 
 This launches a clean, fully configured environment with all required dependencies pre-installed.
 
