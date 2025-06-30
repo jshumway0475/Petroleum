@@ -123,3 +123,6 @@ docker-logs/
 *.log
 *.bak
 *.swp
+
+# Local devcontainer overrides
+.devcontainer/devcontainer.local.json
