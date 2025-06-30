@@ -6,7 +6,7 @@
   },
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash",
-    "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+    "python.defaultInterpreterPath": "/workspaces/petroleum/.venv/bin/python",
     "python.formatting.provider": "black",
     "python.linting.enabled": true,
     "python.linting.flake8Enabled": true
@@ -19,6 +19,6 @@
     "ms-python.black-formatter",
     "esbenp.prettier-vscode"
   ],
-  "workspaceFolder": "/workspace",
-  "postCreateCommand": "python3 -m venv /workspace/.venv && . /workspace/.venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -e . ipykernel"
+  "workspaceFolder": "/workspaces/petroleum",
+  "postCreateCommand": "cd /workspaces/petroleum && python3 -m venv .venv && . .venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -e . ipykernel"
 }
