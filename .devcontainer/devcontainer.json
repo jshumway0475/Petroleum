@@ -22,6 +22,6 @@
     "ms-python.black-formatter",
     "esbenp.prettier-vscode"
   ],
-  "workspaceFolder": "/workspaces/conduit",
-  "postCreateCommand": "pip install --no-cache-dir -e . && pip install ipykernel && python -m ipykernel install --user --name conduit --display-name 'Python (playinsight)'"
+  "workspaceFolder": "/workspaces/playinsight",
+  "postCreateCommand": "pip install --no-cache-dir -e . && pip install ipykernel && python -m ipykernel install --user --name playinsight --display-name 'Python (playinsight)'"
 }
