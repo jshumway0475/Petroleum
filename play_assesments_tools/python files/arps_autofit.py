@@ -3,6 +3,7 @@ import pandas as pd
 import multiprocessing
 import dask.dataframe as dd
 from dask.distributed import LocalCluster, Client, Lock, TimeoutError
+from dask import delayed, compute
 from config.config_loader import get_config
 import AnalyticsAndDBScripts.sql_connect as sql
 import AnalyticsAndDBScripts.sql_schemas as schema
@@ -465,6 +466,7 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5):
     # Track processed chunks to avoid reprocessing on restart
     processed_chunks = load_processed_chunks(folder_path)
 
+    logging.info(f'Dask dashboard available at: {client.dashboard_link}')
     while True:
         # Create SQL statement dynamically based on the population type
         if fit_population == 'well_list':
@@ -488,107 +490,75 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5):
         num_splits = int(np.ceil(rows_fetched / batch_size))
 
         # Split fcst_df into smaller dataframes based on batch_size
-        fcst_dfs = np.array_split(fcst_df, num_splits)
-
-        for i, fcst_chunk in enumerate(fcst_dfs):
+        fcst_chunks = np.array_split(fcst_df, num_splits)
+        delayed_tasks, chunk_indices = [], []
+        for i, fcst_chunk in enumerate(fcst_chunks):
             if i in processed_chunks:
-                logging.info(f'Skipping already processed chunk {i + 1}')
+                logging.info(f"Skipping already-processed chunk {i+1}/{num_splits}")
                 continue
+            logging.info(f"Enqueuing chunk {i+1}/{num_splits} with {len(fcst_chunk)} rows")
+            task = delayed(auto_forecast_partition)(
+                fcst_chunk,
+                sql_creds_dict,
+                value_col,
+                bourdet_params,
+                changepoint_params,
+                b_estimate_params,
+                dei_dict1,
+                default_b_dict,
+                fit_method,
+                use_advi,
+                smoothing_params['factor']
+            )
+            delayed_tasks.append(task)
+            chunk_indices.append(i)
 
-             # Retry logic for each chunk
-            for attempt in range(retries):
-                try:
-                    logging.info(f'Processing chunk {i + 1} of {num_splits} with {len(fcst_chunk)} rows.')
+        # Compute all tasks in parallel
+        if delayed_tasks:
+            futures = client.compute(delayed_tasks)
+            results = client.gather(futures)
 
-                    fcst_ddf = dd.from_pandas(fcst_chunk, npartitions=5)
+            for i, res in zip(chunk_indices, results):
+                for attempt in range(retries):
+                    try:
+                        param_df = pd.DataFrame(res, columns=param_df_cols)
+                        param_df['Units'] = param_df['Measure'].map({'OIL': 'BBL', 'GAS': 'MCF', 'WATER': 'BBL'})
+                        param_df['Def'] = param_df['Measure'].map(def_dict)
+                        param_df['Qabn'] = param_df['Measure'].map(min_q_dict)
+                        param_df[['Q1','Q2','t1','t2']] = None
+                        param_df['DateCreated'] = pd.to_datetime('today')
+                        param_df.rename(columns={'fit_type': 'Analyst'}, inplace=True)
+                        cols = ['WellID', 'Measure', 'Units', 'StartDate', 'Q1', 'Q2', 'Q3', 'Qabn', 'Dei', 'b_factor', 'Def', 't1', 't2', 'Analyst', 'DateCreated']
+                        param_df = param_df[cols].where(pd.notnull(param_df), None)
 
-                    # Define the meta data explicitly
-                    meta_df = pd.DataFrame(columns=param_df_cols)
-
-                    param_ddf = fcst_ddf.map_partitions(
-                        auto_forecast_partition,
-                        sql_creds_dict,
-                        value_col,
-                        bourdet_params,
-                        changepoint_params,
-                        b_estimate_params,
-                        dei_dict1,
-                        default_b_dict,
-                        fit_method,
-                        use_advi,
-                        smoothing_params['factor'],
-                        meta=meta_df
-                    )
-
-                    # Compute the Dask dataframe and store the results in a Pandas dataframe
-                    param_df = param_ddf.compute()
-
-                    # Prep dataframes for loading to SQL Server
-                    units_dict = {'OIL': 'BBL', 'GAS': 'MCF', 'WATER': 'BBL'}
-                    param_df['Units'] = param_df['Measure'].map(units_dict)
-                    param_df['Def'] = param_df['Measure'].map(def_dict)
-                    param_df['Qabn'] = param_df['Measure'].map(min_q_dict)
-                    param_df['Q1'] = None
-                    param_df['Q2'] = None
-                    param_df['t1'] = None
-                    param_df['t2'] = None
-                    param_df['DateCreated'] = pd.to_datetime('today')
-
-                    # Rename some columns
-                    param_df.rename(columns={'fit_type': 'Analyst'}, inplace=True)
-
-                    # Select and reorder columns
-                    cols = ['WellID', 'Measure', 'Units', 'StartDate', 'Q1', 'Q2', 'Q3', 'Qabn', 'Dei', 'b_factor', 'Def', 't1', 't2', 'Analyst', 'DateCreated']
-                    param_df = param_df[cols]
-
-                    # Convert NaN to None for proper database insertion
-                    param_df = param_df.where(pd.notnull(param_df), None)
-                    
-                    with sql_lock:
-                        try:
-                            # Load well_df into dbo.FORECAST_STAGE table in SQL Server
+                        with sql_lock:
                             sql.load_data_to_sql(param_df, sql_creds_dict, schema.forecast_stage)
-
-                            # Move data from dbo.FORECAST_STAGE to dbo.FORECAST and drop dbo.FORECAST_STAGE
                             sql.execute_stored_procedure(sql_creds_dict, 'sp_InsertFromStagingToForecast')
-
-                            # Load forecasts into Aries
                             sql.execute_stored_procedure(sql_aries_creds_dict, 'sp_UpdateInsertFromForecastToACECONOMIC')
 
-                        except TimeoutError:
-                            logging.error(f"Timeout while acquiring lock for chunk {i + 1}.")
-                            raise
-                        except sql.SQLAlchemyError as e:
-                            logging.error(f"SQLAlchemy error during SQL operations for chunk {i + 1}: {e}")
-                            raise
-                        except Exception as e:
-                            logging.error(f"Unexpected error for chunk {i + 1}: {e}")
-                            raise
-
-                    # Record that this chunk has been successfully processed
-                    processed_chunks.add(i)
-                    save_processed_chunk(i, folder_path)
-                    logging.info(f'Chunk {i + 1} processed successfully.')
-                    break
-
-                except OperationalError as e:
-                    logging.error(f"Attempt {attempt + 1} to process chunk {i + 1} failed with error: {e}")
-                    if attempt < retries - 1:
-                        logging.info(f"Retrying chunk {i + 1} after {delay} seconds.")
-                        time.sleep(delay)
-                    else:
-                        logging.error(f"Failed to process chunk {i + 1} after {retries} attempts. Moving on to the next chunk.")
+                        processed_chunks.add(i)
+                        save_processed_chunk(i, folder_path)
+                        logging.info(f"Chunk {i+1}/{num_splits} written successfully.")
                         break
-
-        # If all chunks are processed, break the loop
-        if all(i in processed_chunks for i in range(num_splits)):
-            break
+                    except OperationalError as e:
+                        logging.error(f"Chunk {i+1} write attempt {attempt+1} failed: {e}")
+                        if attempt < retries - 1:
+                            time.sleep(delay)
+                        else:
+                            logging.error(f"Chunk {i+1} failed after {retries} attempts.")
+                    except Exception as e:
+                        logging.error(f"Unexpected error writing chunk {i+1}: {e}")
+                        break
+        
+        # All chunks processed—exit loop                
+        logging.info("All chunks processed; exiting.")
+        break
 
     # If all chunks are processed, delete the processed_chunks.csv file
-    file_path = os.path.join(folder_path, 'processed_chunks.csv')
-    if os.path.exists(file_path):
-        os.remove(file_path)
-        logging.info(f'Deleted {file_path} after successful processing.')
+    progress_file = os.path.join(folder_path, 'processed_chunks.csv')
+    if os.path.exists(progress_file):
+        os.remove(progress_file)
+        logging.info(f"Deleted progress file: {progress_file}")
 
 if __name__ == "__main__":
     # Check if the start method is already set
@@ -596,11 +566,16 @@ if __name__ == "__main__":
         multiprocessing.set_start_method('fork')
 
     # Initialize LocalCluster and Client
-    cluster = LocalCluster(n_workers=8, threads_per_worker=2)
+    cluster = LocalCluster(n_workers=8, threads_per_worker=2, dashboard_address='0.0.0.0:8787')
     client = Client(cluster)
+    logging.info(f"Dask dashboard running at {cluster.dashboard_link}")
 
     try:
         main(client, folder_path=log_folder)
+        logging.info("Processing complete. Dashboard still available until you Ctrl-C.")
+        time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
     finally:
         client.close()
         cluster.close()
