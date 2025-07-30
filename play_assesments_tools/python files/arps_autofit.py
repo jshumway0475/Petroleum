@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import multiprocessing
 import dask.dataframe as dd
-from dask.distributed import LocalCluster, Client, Lock, TimeoutError
+from dask.distributed import LocalCluster, Client, Lock, as_completed, TimeoutError
 from dask import delayed, compute
 from config.config_loader import get_config
 import AnalyticsAndDBScripts.sql_connect as sql
@@ -513,12 +513,23 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5):
             delayed_tasks.append(task)
             chunk_indices.append(i)
 
-        # Compute all tasks in parallel
+        # Compute all tasks in parallel and stream results as they finish
         if delayed_tasks:
+            # 1) submit
             futures = client.compute(delayed_tasks)
-            results = client.gather(futures)
+            fut2idx = {f: idx for f, idx in zip(futures, chunk_indices)}
 
-            for i, res in zip(chunk_indices, results):
+            # 2) consume in arrival order
+            for finished in as_completed(futures):
+                i = fut2idx[finished]
+                try:
+                    res = finished.result()
+                except Exception as e:
+                    logging.error(f"Chunk {i+1} failed in Dask: {e}")
+                    client.cancel(finished)
+                    continue
+
+                # 3) write to SQL with retries
                 for attempt in range(retries):
                     try:
                         param_df = pd.DataFrame(res, columns=param_df_cols)
@@ -530,7 +541,6 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5):
                         param_df.rename(columns={'fit_type': 'Analyst'}, inplace=True)
                         cols = ['WellID', 'Measure', 'Units', 'StartDate', 'Q1', 'Q2', 'Q3', 'Qabn', 'Dei', 'b_factor', 'Def', 't1', 't2', 'Analyst', 'DateCreated']
                         param_df = param_df[cols].where(pd.notnull(param_df), None)
-
                         with sql_lock:
                             sql.load_data_to_sql(param_df, sql_creds_dict, schema.forecast_stage)
                             sql.execute_stored_procedure(sql_creds_dict, 'sp_InsertFromStagingToForecast')
@@ -544,15 +554,16 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5):
                         logging.error(f"Chunk {i+1} write attempt {attempt+1} failed: {e}")
                         if attempt < retries - 1:
                             time.sleep(delay)
-                        else:
-                            logging.error(f"Chunk {i+1} failed after {retries} attempts.")
                     except Exception as e:
                         logging.error(f"Unexpected error writing chunk {i+1}: {e}")
                         break
-        
-        # All chunks processed—exit loop                
-        logging.info("All chunks processed; exiting.")
-        break
+
+                # 4) free memory on both driver and worker
+                del res, param_df
+                client.cancel(finished)
+
+            logging.info("All chunks processed; exiting.")
+            break
 
     # If all chunks are processed, delete the processed_chunks.csv file
     progress_file = os.path.join(folder_path, 'processed_chunks.csv')
@@ -566,7 +577,14 @@ if __name__ == "__main__":
         multiprocessing.set_start_method('fork')
 
     # Initialize LocalCluster and Client
-    cluster = LocalCluster(n_workers=8, threads_per_worker=2, dashboard_address='0.0.0.0:8787')
+    cluster = LocalCluster(
+        n_workers=8, 
+        threads_per_worker=2, 
+        memory_limit='2GB',
+        memory_target_fraction=0.6,
+        memory_spill_fraction=0.7,
+        dashboard_address='0.0.0.0:8787'
+    )
     client = Client(cluster)
     logging.info(f"Dask dashboard running at {cluster.dashboard_link}")
 
