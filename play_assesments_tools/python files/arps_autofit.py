@@ -50,6 +50,7 @@ value_col = 'Value'
 fit_segment = changepoint_params['fit_segment']
 fit_method = method_params['setting']
 trials = method_params['trials']
+use_advi = method_params['use_advi']
 fit_months = method_params['fit_months']
 manual_analyst = method_params['manual_analyst']
 ta_offset_months = method_params['ta_offset_mos']
@@ -114,8 +115,8 @@ def create_statement_wells(population, manual_analyst, ta_offset_mos=12, new_dat
             raise ValueError("fit_group is not specified, but population is set to 'fit_group'.")
         statement = '''
         SELECT		F.WellID, F.Measure, F.LastProdDate
-        FROM		dbo.vw_FORECAST F
-        INNER JOIN  dbo.WELL_HEADER W
+        FROM		dbo.WELL_HEADER W
+        INNER JOIN  dbo.vw_FORECAST F
         ON          F.WellID = W.WellID
         WHERE		F.CumulativeProduction > 0
         AND			(F.Analyst != ? OR F.Analyst IS NULL)
@@ -215,7 +216,21 @@ def create_b_dict(b_low, b_avg, b_high, min_b=0.5, max_b=1.4):
     }
 
 # Alternative function that leverages Markov Chain Monte Carlo (MCMC) sampling for parameter estimation
-def fit_arps_curve(property_id, phase, b_dict, dei_dict, def_dict, min_q_dict, prod_df_cleaned, value_col, method='curve_fit', trials=1000, fit_segment='all', smoothing_factor=smoothing_params['factor']):
+def fit_arps_curve(
+        property_id, 
+        phase, 
+        b_dict, 
+        dei_dict, 
+        def_dict, 
+        min_q_dict, 
+        prod_df_cleaned, 
+        value_col, 
+        method='curve_fit',
+        use_advi=False, 
+        trials=1000, 
+        fit_segment='all', 
+        smoothing_factor=smoothing_params['factor']
+    ):
     # Function to add the terminal decline rate to the dei_dict
     def dict_coalesce(dei_dict, def_dict):
         return dei_dict.get('min', def_dict[phase])
@@ -286,7 +301,7 @@ def fit_arps_curve(property_id, phase, b_dict, dei_dict, def_dict, min_q_dict, p
             'optimize': ['Qi', 'Dei', 'b'],
             'fixed': {'Def': def_dict[phase]}
         }
-        optimized_params = fcst.perform_curve_fit(t_act, q_act, initial_guess, bounds, config_optimize_qi_dei_b, method=method, trials=trials)
+        optimized_params = fcst.perform_curve_fit(t_act, q_act, initial_guess, bounds, config_optimize_qi_dei_b, method=method, trials=trials, use_advi=use_advi)
         qi_fit, Dei_fit, b_fit = optimized_params
         # Fitting the curve
         q_pred = fcst.varps_decline(1, 1, qi_fit, Dei_fit, def_dict[phase], b_fit, t_act, 0, 0)[3]
@@ -306,7 +321,7 @@ def fit_arps_curve(property_id, phase, b_dict, dei_dict, def_dict, min_q_dict, p
             'optimize': ['Dei'],
             'fixed': {'Qi': Qi_guess, 'b': b_guess, 'Def': def_dict[phase]}
         }
-        optimized_params = fcst.perform_curve_fit(t_act, q_act, initial_guess, bounds, config_optimize_dei, method=method, trials=trials)
+        optimized_params = fcst.perform_curve_fit(t_act, q_act, initial_guess, bounds, config_optimize_dei, method=method, trials=trials, use_advi=use_advi)
         Dei_fit = optimized_params[0]
         # Fitting the curve
         q_pred = fcst.varps_decline(1, 1, Qi_guess, Dei_fit, def_dict[phase], b_dict['guess'], t_act, 0, 0)[3]
@@ -358,7 +373,7 @@ def fit_arps_curve(property_id, phase, b_dict, dei_dict, def_dict, min_q_dict, p
     return result
 
 # Function to process production data
-def auto_forecast(wellid, measure, last_prod_date, sql_creds_dict, value_col, bourdet_params, changepoint_params, b_estimate_params, dei_dict1, default_b_dict, method, smoothing_factor):
+def auto_forecast(wellid, measure, last_prod_date, sql_creds_dict, value_col, bourdet_params, changepoint_params, b_estimate_params, dei_dict1, default_b_dict, method, use_advi, smoothing_factor):
     # Load production data
     prod_df = load_data_with_retry(sql_creds_dict, create_statement(wellid, measure, last_prod_date, fit_months=fit_months))
 
@@ -403,12 +418,12 @@ def auto_forecast(wellid, measure, last_prod_date, sql_creds_dict, value_col, bo
         b_dict = default_b_dict[measure]
 
     # Fit Arps forecast to production data
-    result = fit_arps_curve(wellid, measure, b_dict, dei_dict1, def_dict, min_q_dict, prod_df_cleaned, value_col, method, trials, fit_segment, smoothing_factor)
+    result = fit_arps_curve(wellid, measure, b_dict, dei_dict1, def_dict, min_q_dict, prod_df_cleaned, value_col, method, use_advi, trials, fit_segment, smoothing_factor)
 
     return result
 
 # Function to apply the auto_forecast function to each row in the dataframe
-def auto_forecast_partition(df, sql_creds_dict, value_col, bourdet_params, changepoint_params, b_estimate_params, dei_dict1, default_b_dict, method, smoothing_factor): 
+def auto_forecast_partition(df, sql_creds_dict, value_col, bourdet_params, changepoint_params, b_estimate_params, dei_dict1, default_b_dict, method, use_advi, smoothing_factor): 
     # Apply auto_forecast_wrapper to each row in the dataframe
     results = df.apply(
         lambda row: pd.Series(auto_forecast(
@@ -423,6 +438,7 @@ def auto_forecast_partition(df, sql_creds_dict, value_col, bourdet_params, chang
             dei_dict1,
             default_b_dict,
             method,
+            use_advi,
             smoothing_factor
         )).tolist(), axis=1
     )
@@ -499,6 +515,7 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5):
                         dei_dict1,
                         default_b_dict,
                         fit_method,
+                        use_advi,
                         smoothing_params['factor'],
                         meta=meta_df
                     )

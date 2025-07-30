@@ -491,7 +491,7 @@ def calc_goodness_of_fit(q_act, q_pred):
     mae = np.mean(np.abs(q_act - q_pred))
     return r_squared, rmse, mae
 
-def perform_curve_fit(t_act, q_act, initial_guess, bounds, config, method='curve_fit', trials=1000):
+def perform_curve_fit(t_act, q_act, initial_guess, bounds, config, method='curve_fit', trials=1000, use_advi=False):
     """
     Perform curve fitting with dynamic parameter optimization.
     Args:
@@ -504,6 +504,7 @@ def perform_curve_fit(t_act, q_act, initial_guess, bounds, config, method='curve
         method (str): Method to use for fitting. Options are 'curve_fit', 'monte_carlo', and 'differential_evolution'.
                       Defaults to 'curve_fit'.
         trials (int): Number of trials to run. Defaults to 1000.
+        use_advi (bool): Whether to use ADVI for fitting. Defaults to False.
     Returns:
         tuple: Optimized parameters and a success flag (True if fitting succeeded, False otherwise).
     """
@@ -557,12 +558,41 @@ def perform_curve_fit(t_act, q_act, initial_guess, bounds, config, method='curve
             log_q_act = pm.Data('log_q_act', np.log(q_act))
             log_q_model = pm.Deterministic('log_q_model', pm.math.log(q_model))
             
+            '''
+            Y_obs defines the likelihood function for the model.
+            Although it's not explicitly used later in the code, it is essential:
+            - For MCMC (pm.sample), it tells PyMC how to compute the posterior using Bayes’ rule.
+            - For Variational Inference (pm.fit), it defines the objective (ELBO) to minimize.
+            Without this observed variable, PyMC would not have a target to fit against,
+            and sampling or optimization would fail.
+            '''
             Y_obs = pm.Normal('Y_obs', mu=log_q_model, sigma=0.1, observed=log_q_act)
             
-            trace = pm.sample(draws=trials, tune=trials//4, cores=4, nuts_sampler="blackjax", target_accept=0.95, return_inferencedata=True, progressbar=False, nuts_sampler_kwargs={'chain_method':'parallel'})
-        
-        optimized_params = np.array([trace.posterior[param].mean().item() for param in config['optimize']])
-        return optimized_params
+            if use_advi:
+                approx = pm.fit(
+                    method='advi', 
+                    n=trials, 
+                    callbacks=[pm.callbacks.CheckParametersConvergence(tolerance=1e-4)]
+                )
+                trace = approx.sample(draws=trials)
+            else:
+                trace = pm.sample(
+                    draws=trials, 
+                    tune=trials//4, 
+                    cores=4, 
+                    nuts_sampler="blackjax", 
+                    target_accept=0.95, 
+                    return_inferencedata=True, 
+                    progressbar=False, 
+                    nuts_sampler_kwargs={'chain_method':'parallel'}
+                )
+
+        optimized_params = np.array([
+            trace.posterior[param].values.mean() if param in trace.posterior else np.nan
+            for param in config['optimize']
+        ])
+
+        return optimized_params, True, trace
 
     elif method == 'differential_evolution':
         bounds = convert_bounds(bounds)
@@ -572,13 +602,13 @@ def perform_curve_fit(t_act, q_act, initial_guess, bounds, config, method='curve
             return np.sum((q_act - model_values) ** 2)  # Sum of squared errors
         
         result = differential_evolution(de_model_func, bounds_de, maxiter=trials)
-        return result.x
+        return result.x, True
 
     else:
         try:
             wrapped_model_func = partial(model_func, method='curve_fit')
             popt, _ = curve_fit(wrapped_model_func, t_act, q_act, p0=initial_guess, bounds=bounds, maxfev=trials)
-            return popt
+            return popt, True
         except RuntimeError as e:
             print(f"Curve fitting failed: {e}")
-            return None
+            return np.full(len(config["optimize"]), np.nan), False

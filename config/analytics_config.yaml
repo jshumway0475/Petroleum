@@ -111,6 +111,7 @@ decline_curve:
   - name: method
     setting: curve_fit  # 'curve_fit', 'differential_evolution' or 'monte_carlo'. Default is 'curve_fit'. 'monte_carlo' is the most robust but slowest method (5-10 secs per forecast).
     trials: 3000
+    use_advi: True  # Use ADVI for fitting when monte_carlo is selected. This is faster but may not be as accurate.
     fit_months: 72  # Maximum number of months to fit referenced to todays date
     manual_analyst: "JAYENG"  # Aries qualifier used for manual decline forecasts
     ta_offset_mos: 12  # Maximum number of months since last prodution date to still consider a well active and include in forecasting
@@ -125,6 +126,7 @@ well_spacing:
   co_completed_threshold: 70  # Units in days, difference between first production dates
   final_projection: "EPSG:4326"
   minimum_lateral_length: 1000  # Units in feet
+  minimum_vintage: 2003  # Year integer, wells with first production date before this year will be ignored
   day_offset: 30  # Number of days between recalculation of well spacing for a fit group
   fit_groups:  # Used to keep batches in manageable sizes
     - name: "PERMIAN"
