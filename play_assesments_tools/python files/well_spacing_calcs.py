@@ -28,17 +28,18 @@ params = get_config('well_spacing', path=config_path)
 fit_groups_config = params['fit_groups']
 projection = params['final_projection']
 min_lat_length = params['minimum_lateral_length']
+min_vintage = params['minimum_vintage']
 update_date = pd.Timestamp.now()
 day_offset = params['day_offset']
 
 # Function to create sql statements
-def create_statement(config, group_name, min_lat_length, day_offset=0):
+def create_statement(config, group_name, min_lat_length, min_vintage, day_offset=0):
     # Function to extract basin list from config
     def get_basins(config, group_name):
         return next((group['basins'] for group in config if group['name'] == group_name), None)
 
     # Functions to create sql statements
-    def create_statement_inclusive(config, group_name, min_lat_length, day_offset):
+    def create_statement_inclusive(config, group_name, min_lat_length, min_vintage, day_offset):
         basin_sql = "', '".join(get_basins(config, group_name))
         return f'''
         WITH MinUpdateDate AS (
@@ -46,7 +47,7 @@ def create_statement(config, group_name, min_lat_length, day_offset=0):
             FROM        dbo.WELL_SPACING S
             INNER JOIN  dbo.WELL_HEADER W ON S.WellID = W.WellID
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '2003-01-01' 
+            AND         W.FirstProdDate >= '{min_vintage}' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         W.Basin IN ('{basin_sql}')
         ),
@@ -56,7 +57,7 @@ def create_statement(config, group_name, min_lat_length, day_offset=0):
             FROM        dbo.WELL_HEADER W
             CROSS JOIN	MinUpdateDate U
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '2003-01-01' 
+            AND         W.FirstProdDate >= '{min_vintage}' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         W.Geometry IS NOT NULL
             AND         W.Basin IN ('{basin_sql}')
@@ -67,7 +68,7 @@ def create_statement(config, group_name, min_lat_length, day_offset=0):
         '''
 
     # Function to create SQL statement for basins not in any group
-    def create_statement_exclusive(config, min_lat_length, day_offset):
+    def create_statement_exclusive(config, min_lat_length, min_vintage, day_offset):
         all_basins = (basin for group in config for basin in group['basins'])
         all_basins_sql = "', '".join(all_basins)
         return f'''
@@ -76,7 +77,7 @@ def create_statement(config, group_name, min_lat_length, day_offset=0):
             FROM        dbo.WELL_SPACING S
             LEFT JOIN   dbo.WELL_HEADER W ON S.WellID = W.WellID
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '2003-01-01' 
+            AND         W.FirstProdDate >= '{min_vintage}' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         (W.Basin NOT IN ('{all_basins_sql}') OR W.Basin IS NULL)
         ),
@@ -86,7 +87,7 @@ def create_statement(config, group_name, min_lat_length, day_offset=0):
             FROM        dbo.WELL_HEADER W
             CROSS JOIN	MinUpdateDate U
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '2003-01-01' 
+            AND         W.FirstProdDate >= '{min_vintage}' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         W.Geometry IS NOT NULL
             AND         (W.Basin NOT IN ('{all_basins_sql}') OR W.Basin IS NULL)
@@ -97,9 +98,9 @@ def create_statement(config, group_name, min_lat_length, day_offset=0):
         '''
     
     if group_name == 'OTHER':
-        return create_statement_exclusive(config, min_lat_length, day_offset)
+        return create_statement_exclusive(config, min_lat_length, min_vintage, day_offset)
     else:
-        return create_statement_inclusive(config, group_name, min_lat_length, day_offset)
+        return create_statement_inclusive(config, group_name, min_lat_length, min_vintage, day_offset)
         
 # Execute query and store results in a dataframe
 def load_data(creds, statement):
@@ -180,7 +181,7 @@ fit_group_list = list(group['name'] for group in fit_groups_config) + ['OTHER']
 
 with Manager() as manager:
     lock = manager.Lock()
-    args_list = ((fit_groups_config, group, projection, min_lat_length, day_offset, update_date, sql_creds_dict, lock) for group in fit_group_list)
+    args_list = ((fit_groups_config, group, projection, min_lat_length, min_vintage, day_offset, update_date, sql_creds_dict, lock) for group in fit_group_list)
 
     with get_reusable_executor(max_workers=1) as executor:
         futures = (executor.submit(process_data, args) for args in args_list)
