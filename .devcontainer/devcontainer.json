@@ -4,6 +4,13 @@
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
+  "forwardPorts": [ 8787 ],
+  "portsAttributes": {
+    "8787": {
+      "label": "Dask Dashboard",
+      "onAutoForward": "notify"
+    }
+  },
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash",
     "python.defaultInterpreterPath": "/home/appuser/.venv/bin/python",
