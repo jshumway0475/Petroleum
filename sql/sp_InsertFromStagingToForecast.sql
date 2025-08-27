@@ -42,7 +42,8 @@ BEGIN
 				Target.[Def] = Source.[Def],
                 Target.[t1] = Source.[t1],
 				Target.[t2] = Source.[t2],
-                Target.[DateCreated] = Source.[DateCreated]
+                Target.[DateCreated] = Source.[DateCreated],
+				Target.[TraceBlob]  = COALESCE(Source.[TraceBlob], Target.[TraceBlob])
         
         -- When no records are matched, insert the incoming records from the source table
         WHEN NOT MATCHED BY TARGET THEN
@@ -61,7 +62,8 @@ BEGIN
 				[t1],
 				[t2],
 				[Analyst],
-				[DateCreated]
+				[DateCreated],
+				[TraceBlob]
             )
             VALUES (
                 Source.[WellID],
@@ -78,7 +80,8 @@ BEGIN
 				Source.[t1],
 				Source.[t2],
 				Source.[Analyst],
-				Source.[DateCreated]
+				Source.[DateCreated],
+				Source.[TraceBlob]
             );
 
         -- If the operation was successful, commit the transaction
