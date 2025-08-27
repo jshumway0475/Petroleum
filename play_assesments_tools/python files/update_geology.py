@@ -13,7 +13,7 @@ from shapely import wkt
 import geopandas as gpd
 
 # Path to the config file
-config_path = '/app/conduit/config/analytics_config.yaml'
+config_path = os.getenv("CONFIG_PATH")
 
 # Load configs
 sql_creds_dict = get_config('credentials', 'sql1_sa', path=config_path)
@@ -40,7 +40,7 @@ def sql_statement(config):
     FROM        dbo.WELL_HEADER W
     INNER JOIN  dbo.COMPLETION_HEADER C
     ON          W.CurrentCompletionID = C.CompletionID
-    WHERE       C.Interval IN ('{interval}')
+    WHERE       C.SubInterval IN ('{interval}')
     AND         C.DataSource = 'ENVERUS'
     '''
     return sql
@@ -115,7 +115,7 @@ sql.load_data_to_sql(df, sql_creds_dict, temp_schema)
 # Prepare the update query
 query = sql.generate_update_query(
     df=df,
-    dest_table_name='dbo.COMPLETION_HEADER',
+    dest_table_name='dbo.WELL_OVERRIDE',
     source_table_name=f'dbo.{staging_tbl_name}',
     join_columns=['WellID', 'DataSource']
 )
