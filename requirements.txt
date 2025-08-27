@@ -16,14 +16,14 @@ shap
 joblib
 statsmodels
 ruptures
+numba
 
 # === Probabilistic modeling ===
 pymc
-aesara
 arviz
 jax
+jaxlib
 blackjax
-numba
 
 # === Geospatial analysis ===
 geopandas
@@ -36,9 +36,10 @@ geopy
 folium
 branca
 dask_geopandas
+pyogrio
 
 # === Dask & parallel processing ===
-dask[complete]
+dask[dataframe,distributed,diagnostics]
 loky
 
 # === Data I/O and database connectivity ===
@@ -52,15 +53,12 @@ yfinance
 dash
 streamlit
 voila
-qgrid
 ipywidgets
 
 # === Jupyter environment ===
 jupyterlab
-jupyterthemes
-jupyter_contrib_nbextensions
-jupyter_nbextensions_configurator
 ipython
+ipykernel
 
 # === Code quality and dev tools ===
 autopep8
@@ -71,4 +69,4 @@ line_profiler
 memory_profiler
 
 # === Custom or external packages ===
-petbox_dca
+petbox-dca
