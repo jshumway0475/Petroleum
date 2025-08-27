@@ -4,6 +4,8 @@
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
+  "remoteUser": "appuser",
+  "workspaceFolder": "/workspaces/playinsight",
   "forwardPorts": [ 8787 ],
   "portsAttributes": {
     "8787": {
@@ -13,14 +15,42 @@
   },
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash",
-    "python.defaultInterpreterPath": "/home/appuser/.venv/bin/python",
+    "python.defaultInterpreterPath": "/opt/venv/bin/python",
     "python.formatting.provider": "black",
     "python.linting.enabled": true,
     "python.linting.flake8Enabled": true,
-    "python.envFile": "${workspaceFolder}/.env"
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.analysis.extraPaths": [
+      "${workspaceFolder}",
+      "${workspaceFolder}/AnalyticsAndDBScripts",
+      "${workspaceFolder}/config"
+    ]
   },
-  "runEnvFile": ".env",
-  "mounts": ["source=${localEnv:LOCAL_PROJECTS_PATH},target=/workspace/local_projects,type=bind"],
+  "runEnvFile": "../.env",
+  "containerEnv": {
+    "PIP_NO_CACHE_DIR": "1",
+    "PYTENSOR_FLAGS": "floatX=float64,optimizer_excluding=constant_folding,cxx=/usr/bin/g++,compiledir=/data/tmp/pytensor",
+    "XLA_FLAGS": "--xla_persistent_cache_dir=/data/tmp/jax",
+    "JAX_CACHE_DIR": "/data/tmp/jax",
+    "DASK_TEMPORARY_DIRECTORY": "/data/tmp/dask",
+    "NUMEXPR_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "CC": "/usr/bin/gcc",
+    "CXX": "/usr/bin/g++"
+  },
+  "mounts": [
+    "source=${localEnv:LOCAL_PROJECTS_PATH},target=/workspace/local_projects,type=bind",
+    "type=tmpfs,target=/data/tmp,tmpfs-size=8g"
+  ],
+  "runArgs": [
+    "--shm-size=2g",
+    "--ulimit", "memlock=-1",
+    "--ulimit", "stack=67108864"
+  ],
+  "onCreateCommand": "mkdir -p /workspaces/playinsight/working_files /data/tmp",
+  "postCreateCommand": "pip install --no-cache-dir -e . && pip install --no-cache-dir ipykernel && python -m ipykernel install --user --name playinsight --display-name 'Python (playinsight)'",
   "extensions": [
     "ms-python.python",
     "ms-toolsai.jupyter",
@@ -29,6 +59,5 @@
     "ms-python.black-formatter",
     "esbenp.prettier-vscode"
   ],
-  "workspaceFolder": "/workspaces/playinsight",
-  "postCreateCommand": "pip install --no-cache-dir -e . && pip install ipykernel && python -m ipykernel install --user --name playinsight --display-name 'Python (playinsight)'"
+  "shutdownAction": "stopContainer"
 }
