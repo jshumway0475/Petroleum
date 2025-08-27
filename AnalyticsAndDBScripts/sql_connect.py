@@ -1,9 +1,12 @@
 import json
 from sqlalchemy import create_engine, text
+import sqlalchemy as sa
 from urllib.parse import quote_plus
 from sqlalchemy.exc import SQLAlchemyError
 import pyodbc
 import pandas as pd
+
+ODBC_DRIVER = "ODBC Driver 18 for SQL Server"
 
 # Function to return a dictionary from a json file
 def get_json_dict(json_file):
@@ -11,47 +14,78 @@ def get_json_dict(json_file):
         json_dict = json.load(file)
     return json_dict
 
+def _server_with_port(servername: str, port: str | int | None):
+    """Return SERVER string acceptable to msodbcsql: 'host,port' if port is provided."""
+    if port is None or str(port).strip() == "":
+        return str(servername)
+    return f"{servername},{port}"
+
+def _common_security_kv(creds_dict: dict) -> str:
+    """
+    v18 defaults to Encrypt=yes. If you're using on-prem with self-signed certs,
+    TrustServerCertificate=yes avoids certificate validation failures.
+    Allow opt-out via creds_dict if you've installed a proper CA chain.
+    """
+    encrypt = creds_dict.get("encrypt", "yes")
+    trust = creds_dict.get("trust_server_certificate", "yes")
+    return f"Encrypt={encrypt};TrustServerCertificate={trust};"
+
 # Function to query using pyodbc
 def sql_query_pyodbc(query, creds_dict):
-    '''
+    """
     Query a SQL Server database using pyodbc.
-    :param query: SQL query to execute
-    :param creds_dict: Dictionary containing connection credentials
-    :return: Query results as a pandas DataFrame
-    '''
+    :query: SQL query to execute
+    :creds_dict: {servername, db_name, username, password, [port], [encrypt], [trust_server_certificate]}
+    :return: pandas DataFrame or None on error
+    """
+    conn = cursor = None
     try:
-        # Form the connection string
-        conn_str = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={creds_dict['servername']};DATABASE={creds_dict['db_name']};UID={creds_dict['username']};PWD={creds_dict['password']}"
-        if 'port' in creds_dict:
-            conn_str += f";PORT={creds_dict['port']}"
-
-        # Establish a database connection
+        server = _server_with_port(creds_dict['servername'], creds_dict.get('port'))
+        security = _common_security_kv(creds_dict)
+        conn_str = (
+            f"DRIVER={{{ODBC_DRIVER}}};"
+            f"SERVER={server};"
+            f"DATABASE={creds_dict['db_name']};"
+            f"UID={creds_dict['username']};PWD={creds_dict['password']};"
+            f"{security}"
+        )
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
         cursor.execute(query)
         results = cursor.fetchall()
-
-        # Extract column names from cursor
-        columns = [column[0] for column in cursor.description]
-
-        # Create a DataFrame from the rows
+        columns = [c[0] for c in cursor.description]
         df = pd.DataFrame.from_records(results, columns=columns)
+        return df
 
     except Exception as e:
         print(f"An error occurred while querying the database: {e}")
+        try:
+            # Helpful hint if driver lookup fails
+            print("pyodbc.drivers():", pyodbc.drivers())
+        except Exception:
+            pass
         return None
-
     finally:
-        # Close the cursor and connection
         if cursor:
             cursor.close()
         if conn:
             conn.close()
 
-    return df
-
 # Function to connect to SQL Server database
-def sql_connect(username, password, db_name, server_name, port, return_engine=True, pool_size=10, max_overflow=20, pool_timeout=60, pool_recycle=3600, autocommit=False):
+def sql_connect(
+        username, 
+        password, 
+        db_name, 
+        server_name, 
+        port, 
+        return_engine=True, 
+        pool_size=10, 
+        max_overflow=20, 
+        pool_timeout=60, 
+        pool_recycle=3600, 
+        autocommit=False,
+        creds_dict: dict | None = None
+    ):
     '''
     Connect to a SQL Server database using SQLAlchemy.
     Args:
@@ -66,25 +100,31 @@ def sql_connect(username, password, db_name, server_name, port, return_engine=Tr
     - pool_timeout (int): The number of seconds to wait before giving up on getting a connection from the pool.
     - pool_recycle (int): The number of seconds after which a connection is automatically recycled.
     - autocommit (bool): If True, set the connection to autocommit mode (useful for stored procedures).
+    - creds_dict (dict | None): Optional dictionary containing additional connection parameters like 'encrypt' and 'trust_server_certificate'.
     Returns:
     - engine (sqlalchemy.engine.base.Engine): The SQLAlchemy engine object.
     - connection_string (str): The connection string used to connect to the database.
     '''
-    # Construct the ODBC connection string
-    conn_stmt = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server_name},{port};DATABASE={db_name};UID={username};PWD={password}'
-    
-    # URL-encode the ODBC connection string
-    encoded_conn_stmt = quote_plus(conn_stmt)
-    
-    # Create the SQLAlchemy engine using the encoded connection string
-    connection_string = f"mssql+pyodbc:///?odbc_connect={encoded_conn_stmt}"
+    security = _common_security_kv(creds_dict or {})
+    server = _server_with_port(server_name, port)
 
-    # Set up the connection parameters with autocommit if needed
+    # ODBC connection string (URL-encoded for SQLAlchemy's odbc_connect)
+    conn_stmt = (
+        f"DRIVER={{{ODBC_DRIVER}}};"
+        f"SERVER={server};"
+        f"DATABASE={db_name};"
+        f"UID={username};PWD={password};"
+        f"{security}"
+    )
+    encoded = quote_plus(conn_stmt)
+    connection_string = f"mssql+pyodbc:///?odbc_connect={encoded}"
+
     engine_params = {
         'pool_size': pool_size,
         'max_overflow': max_overflow,
         'pool_timeout': pool_timeout,
-        'pool_recycle': pool_recycle
+        'pool_recycle': pool_recycle,
+        'fast_executemany': True
     }
 
     engine = create_engine(
@@ -92,11 +132,7 @@ def sql_connect(username, password, db_name, server_name, port, return_engine=Tr
         isolation_level="AUTOCOMMIT" if autocommit else "READ COMMITTED",
         **engine_params
     )
-
-    if return_engine:
-        return engine
-    else:
-        return connection_string
+    return engine if return_engine else connection_string
 
 # Helper function to ensure table exists
 def _ensure_table_exists(engine, connection, table_schema):
@@ -108,35 +144,57 @@ def _ensure_table_exists(engine, connection, table_schema):
 def load_data_to_sql(df, creds_dict, table_schema, lock=None):
     '''
     Load data into a SQL Server table.
-    :param df: DataFrame containing the data to load
-    :param creds_dict: Dictionary containing connection credentials
-    :param table_name: The name of the database table
-    :param lock: A threading lock object to synchronize access to the database
+    :df: DataFrame containing the data to load
+    :creds_dict: Dictionary containing connection credentials
+    :table_schema: SQLAlchemy Table object defining the schema of the table
+        - creds_dict can include: encrypt, trust_server_certificate
+    :table_name: The name of the database table
+    :lock: A threading lock object to synchronize access to the database
     '''
     engine = sql_connect(
         username=creds_dict['username'], 
         password=creds_dict['password'], 
         db_name=creds_dict['db_name'], 
         server_name=creds_dict['servername'], 
-        port=creds_dict['port']
+        port=creds_dict['port'],
+        creds_dict=creds_dict
     )
+
+    # NaN -> None
+    null_cols = df.columns[df.isna().any()]
+    df[null_cols] = df[null_cols].astype(object).where(pd.notna(df[null_cols]), None)
+
+    # Coerce LargeBinary columns to bytes/None
+    binary_cols = [c.name for c in table_schema.columns if isinstance(c.type, sa.LargeBinary)]
+    for col in binary_cols:
+        if col in df.columns:
+            def _to_bytes(v):
+                if v is None:
+                    return None
+                if isinstance(v, (bytes, bytearray, memoryview)):
+                    return bytes(v)
+                return None
+            df[col] = df[col].map(_to_bytes).astype(object)
+
+    # Only bind columns that appear in the DataFrame
+    cols = [c for c in table_schema.columns if c.name in df.columns]
+
+    # Typed bindparams straight from the schema (no special-casing)
+    values_map = {c.name: sa.bindparam(c.name, type_=c.type) for c in cols}
+    stmt = sa.insert(table_schema).values(**values_map)
+
+    rows = df.to_dict(orient='records')
+
     with engine.connect() as connection:
         with connection.begin():
             try:
+                _ensure_table_exists(engine, connection, table_schema)
                 if lock:
                     with lock:
-                        _ensure_table_exists(engine, connection, table_schema)
-                    
-                        # Load data into the table
-                        df.to_sql(table_schema.name, con=connection, if_exists='append', index=False)
-                        print(f"Data loaded into table {table_schema.name}")
+                        connection.execute(stmt, rows)
                 else:
-                    _ensure_table_exists(engine, connection, table_schema)
-
-                    # Load data into the table
-                    df.to_sql(table_schema.name, con=connection, if_exists='append', index=False)
-                    print(f"Data loaded into table {table_schema.name}")
-
+                    connection.execute(stmt, rows)
+                print(f"Data loaded into table {table_schema.name}")
             except SQLAlchemyError as e:
                 print(f"SQLAlchemyError occurred: {e}")
                 raise
@@ -155,7 +213,8 @@ def execute_stored_procedure(creds_dict, procedure_name, lock=None):
             db_name=creds_dict['db_name'], 
             server_name=creds_dict['servername'], 
             port=creds_dict['port'],
-            autocommit=True
+            autocommit=True,
+            creds_dict=creds_dict
         )
         # Start a connection and transaction
         with engine.connect() as connection:
