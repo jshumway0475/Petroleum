@@ -1,5 +1,5 @@
 # Schemas for data being loaded into SQL
-from sqlalchemy import MetaData, Table, Column, BigInteger, String, Float, DateTime, Text, Integer
+from sqlalchemy import MetaData, Table, Column, BigInteger, String, Float, DateTime, Text, Integer, LargeBinary
 from sqlalchemy.exc import SQLAlchemyError
 import pandas as pd
 
@@ -168,7 +168,8 @@ forecast_stage = Table('FORECAST_STAGE', metadata,
     Column('t1', Integer),
     Column('t2', Integer),
     Column('Analyst', String(64)),
-    Column('DateCreated', DateTime, default="GETDATE()")
+    Column('DateCreated', DateTime, default="GETDATE()"),
+    Column('TraceBlob', LargeBinary)
 )
 
 # Define the FORECAST_VOLUME_STAGE table structure
