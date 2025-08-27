@@ -1,52 +1,96 @@
-# Use the latest GDAL-enabled base image from GitHub Container Registry
-FROM ghcr.io/osgeo/gdal:ubuntu-small-latest
+# ---------- Stage 1: builder (has compilers/headers) ----------
+FROM ghcr.io/osgeo/gdal:ubuntu-small-latest AS builder
+ARG DEBIAN_FRONTEND=noninteractive
 
-# Set working directory
-WORKDIR /app
+# Build tooling + headers (removed in final stage)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential g++ \
+      python3 python3-pip python3-venv \
+      libopenblas-dev libomp-dev \
+      libspatialindex-dev unixodbc-dev \
+      curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies and Python venv support
-RUN apt-get update && \
-    apt-get install -y \
-        git curl unixodbc unixodbc-dev \
-        python3 python3-pip python3-venv \
-        postgresql-client sudo \
-        libomp-dev vim wget g++ libopenblas-dev \
-    && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
-    && curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql17 mssql-tools \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Make compilers discoverable for pip builds
+ENV CC=/usr/bin/gcc CXX=/usr/bin/g++
 
-# Set up and activate a virtual environment
-RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --upgrade pip
+# Create venv and upgrade pip
+RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --upgrade pip
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PIP_NO_CACHE_DIR=1
 
-# Make sure all future pip/python commands use the venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy requirements and install them into the virtual environment
+# Copy only requirements first for better layer caching
+WORKDIR /tmp/build
 COPY requirements.txt .
+
+# Install Python deps into the venv (wheels get built here if needed)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create a non-root user (for VS Code and security best practices)
-RUN useradd -m appuser && \
-    echo "appuser ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/appuser && \
-    chmod 0440 /etc/sudoers.d/appuser
+# ---------- Stage 2: runtime (lean) ----------
+FROM ghcr.io/osgeo/gdal:ubuntu-small-latest
+ARG DEBIAN_FRONTEND=noninteractive
 
-# Switch to non-root user
+# Add Microsoft repo (Ubuntu 24.04 / noble) via keyrings, then install runtime deps
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates gnupg && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" \
+      > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
+      unixodbc \
+      postgresql-client sudo \
+      msodbcsql18 mssql-tools18 \
+      libopenblas0-openmp \
+      libspatialindex6 \
+      g++ libgomp1 python3.12-dev \
+      git openssh-client \
+      vim wget && \
+    echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' > /etc/profile.d/mssql-tools.sh && \
+    rm -rf /var/lib/apt/lists/*
+
+# Make compilers discoverable for JIT at runtime
+ENV CC=/usr/bin/gcc CXX=/usr/bin/g++
+
+# Make SQL tools available in non-login shells too
+ENV PATH="/opt/mssql-tools18/bin:${PATH}"
+
+# Copy only the ready venv from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user and dirs
+RUN useradd -m -s /bin/bash appuser \
+ && echo "appuser ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/appuser \
+ && chmod 0440 /etc/sudoers.d/appuser \
+ && mkdir -p /data/tmp /workspace /workspaces/conduit \
+ && chown -R appuser:appuser /opt/venv /data/tmp /workspace /workspaces
+
+# Keep Docker VHDX small + steer heavy caches to /data/tmp
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTENSOR_FLAGS="floatX=float64,optimizer_excluding=constant_folding,cxx=/usr/bin/g++,compiledir=/data/tmp/pytensor" \
+    XLA_FLAGS="--xla_persistent_cache_dir=/data/tmp/jax" \
+    JAX_CACHE_DIR="/data/tmp/jax" \
+    DASK_TEMPORARY_DIRECTORY="/data/tmp/dask" \
+    NUMEXPR_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    PYTHONUNBUFFERED=1
+
+# Ensure temp directories exist
+RUN mkdir -p /data/tmp/pytensor /data/tmp/jax /data/tmp/dask && \
+    chmod -R 777 /data/tmp
+
+# Global PyTensor config
+RUN printf "[global]\nfloatX = float64\ndevice = cpu\n\n[blas]\nldflags = -lopenblas\n" > /etc/pytensorrc
+
+# Mark the workspace as safe for Git
+RUN git config --system --add safe.directory /workspaces/conduit
+
 USER appuser
+WORKDIR /workspaces/conduit
 
-# Set environment variables for Python behavior and parallel processing
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/home/appuser/.local/bin:$PATH" \
-    OMP_NUM_THREADS=4 \
-    MKL_NUM_THREADS=4
-
-# Optional: PyTensor config for PyMC
-RUN echo "[global]\nfloatX = float64\ndevice = cpu\n\n[blas]\nldflags = -lopenblas\n" > /home/appuser/.pytensorrc
-
-# Set workspace for mounted repo (used by devcontainer.json)
-WORKDIR /workspace
-
-# Default command for interactive sessions in VS Code
 CMD ["python3"]
