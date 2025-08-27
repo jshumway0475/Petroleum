@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 from config.config_loader import get_config
@@ -8,7 +9,7 @@ import gc
 from multiprocessing import Pool, Lock
 
 # Path to the config file
-config_path = '/app/conduit/config/analytics_config.yaml'
+config_path = os.getenv("CONFIG_PATH")
 
 # Load credentials for SQL connection
 sql_creds_dict = get_config('credentials', 'sql1_sa', path=config_path)
