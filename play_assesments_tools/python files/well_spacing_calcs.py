@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import geopandas as gpd
 import pandas as pd
@@ -15,7 +16,7 @@ import warnings
 warnings.filterwarnings(action='ignore')
 
 # Path to the config file
-config_path = '/app/conduit/config/analytics_config.yaml'
+config_path = os.getenv("CONFIG_PATH")
 
 # Load credentials for SQL
 sql_creds_dict = get_config('credentials', 'sql1_sa', path=config_path)
@@ -47,7 +48,7 @@ def create_statement(config, group_name, min_lat_length, min_vintage, day_offset
             FROM        dbo.WELL_SPACING S
             INNER JOIN  dbo.WELL_HEADER W ON S.WellID = W.WellID
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '{min_vintage}' 
+            AND         W.FirstProdDate >= '{min_vintage}-01-01' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         W.Basin IN ('{basin_sql}')
         ),
@@ -57,7 +58,7 @@ def create_statement(config, group_name, min_lat_length, min_vintage, day_offset
             FROM        dbo.WELL_HEADER W
             CROSS JOIN	MinUpdateDate U
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '{min_vintage}' 
+            AND         W.FirstProdDate >= '{min_vintage}-01-01' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         W.Geometry IS NOT NULL
             AND         W.Basin IN ('{basin_sql}')
@@ -77,7 +78,7 @@ def create_statement(config, group_name, min_lat_length, min_vintage, day_offset
             FROM        dbo.WELL_SPACING S
             LEFT JOIN   dbo.WELL_HEADER W ON S.WellID = W.WellID
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '{min_vintage}' 
+            AND         W.FirstProdDate >= '{min_vintage}-01-01' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         (W.Basin NOT IN ('{all_basins_sql}') OR W.Basin IS NULL)
         ),
@@ -87,7 +88,7 @@ def create_statement(config, group_name, min_lat_length, min_vintage, day_offset
             FROM        dbo.WELL_HEADER W
             CROSS JOIN	MinUpdateDate U
             WHERE       W.Trajectory = 'HORIZONTAL' 
-            AND         W.FirstProdDate >= '{min_vintage}' 
+            AND         W.FirstProdDate >= '{min_vintage}-01-01' 
             AND         W.LateralLength_FT > {min_lat_length}
             AND         W.Geometry IS NOT NULL
             AND         (W.Basin NOT IN ('{all_basins_sql}') OR W.Basin IS NULL)
@@ -101,7 +102,7 @@ def create_statement(config, group_name, min_lat_length, min_vintage, day_offset
         return create_statement_exclusive(config, min_lat_length, min_vintage, day_offset)
     else:
         return create_statement_inclusive(config, group_name, min_lat_length, min_vintage, day_offset)
-        
+
 # Execute query and store results in a dataframe
 def load_data(creds, statement):
     engine = sql.sql_connect(
@@ -120,10 +121,10 @@ def load_data(creds, statement):
 # Function to process each basin
 @wrap_non_picklable_objects
 def process_data(args):
-    config, group_name, projection, min_lat_length, day_offset, update_date, sql_creds_dict, lock = args
+    config, group_name, projection, min_lat_length, min_vintage, day_offset, update_date, sql_creds_dict, lock = args
     try:
         # Load data from SQL Server
-        statement = create_statement(config, group_name, min_lat_length, day_offset)
+        statement = create_statement(config, group_name, min_lat_length, min_vintage, day_offset)
         print(f"Loading data for fit_group {group_name}")
         df = load_data(sql_creds_dict, statement)
 
