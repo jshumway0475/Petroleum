@@ -52,7 +52,7 @@ credentials:
 
 geology:
   - name: example_grid
-    path: "/home/vscode/conduit/data/grids/TVD Structure Map to Top Barnett Pay V2.XYZ"
+    path: "/home/vscode/playinsight/data/grids/TVD Structure Map to Top Barnett Pay V2.XYZ"
     type: 1  # 1: long, lat, z; 2: x, y, z
     epsg: 4269  # 4269: NAD83; 4326: WGS84, see epsg.io
     delimiter: ","
