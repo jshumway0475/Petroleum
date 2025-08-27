@@ -113,6 +113,7 @@ CREATE TABLE dbo.COMPLETION_HEADER (
 	GasGravity_SG				FLOAT,     
 	DataSource					VARCHAR(64) NOT NULL,
 	DateCreated					DATETIME DEFAULT GETDATE(),
+	SubInterval					VARCHAR(256),
 	PRIMARY KEY (CompletionID, WellID, DataSource),
 	FOREIGN KEY (WellID) 
 		REFERENCES dbo.WELL_HEADER(WellID)
@@ -134,7 +135,7 @@ CREATE TABLE dbo.PRODUCTION (
 	Comment						VARCHAR(MAX),
 	DateCreated					DATETIME DEFAULT GETDATE(),
 	DateRank					INT NULL,
-	CumulativeValue				FLOAT NULL
+	SourceRank					INT NULL,
 	FOREIGN KEY (WellID) 
 		REFERENCES dbo.WELL_HEADER(WellID)
 		ON DELETE CASCADE
@@ -196,6 +197,7 @@ CREATE TABLE dbo.FORECAST (
 	t2							INT,
 	Analyst						VARCHAR(64),
 	DateCreated					DATETIME DEFAULT GETDATE(),
+	TraceBlob					VARBINARY(MAX),
 	FOREIGN KEY (WellID) 
 		REFERENCES dbo.WELL_HEADER(WellID)
 		ON DELETE CASCADE
@@ -288,6 +290,14 @@ CREATE TABLE dbo.WELL_OVERRIDE (
     OilGravity_API				float,
     GasGravity_SG				float,
 	Geometry					geometry,
+	TotalClusters				INT,
+	AvgTreatmentPressure_PSI	INT, 
+	AvgTreatmentRate_BBLPerMin	FLOAT,
+	TestFCP_PSI					FLOAT,
+	TestFTP_PSI					FLOAT,
+	SubInterval					VARCHAR(256),
+	TopOfZone_FT				FLOAT,
+	BottomOfZone_FT				FLOAT,
 	PRIMARY KEY (WellID, DataSource)
 );
 
