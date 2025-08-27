@@ -352,6 +352,7 @@ def econ_cf(
 # function to calculate npv, assumes monthly cash flow and annualized discount rate
 def npv(disc_rate, ncf, n):
     '''
+    Mid-period NPV for 0-based month indices.
     Args:
         - disc_rate (float): annualized discount rate as a decimal
         - ncf (array): array of monthly cash flow
@@ -359,10 +360,11 @@ def npv(disc_rate, ncf, n):
     Returns:
         - pv (float): present value of the cash flow
     '''
-    rate = disc_rate / 12 # Corrects effective discount rate from annual to monthly for discounting
-    factor = 1 / ((1 + rate) ** -0.5) # Adjusts discounting to mid-period similar to Aries output
-    pv = np.sum(ncf / ((1 + rate) ** n)) * factor
-    return pv
+    ncf = np.asarray(ncf, dtype=float)
+    n = np.asarray(n, dtype=float)
+    mask = ~np.isnan(ncf)
+    exponents = (n[mask] + 0.5) / 12.0
+    return np.sum(ncf[mask] / ((1.0 + disc_rate) ** exponents))
 
 '''
 q1, q2, q3, dei, def, b, t1, t2, duration, wi, nri, roy, eloss, weight, prod_wt, inv_wt, shrink, btu, 
