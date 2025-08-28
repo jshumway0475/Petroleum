@@ -43,6 +43,7 @@ import logging
 import time
 from typing import Optional
 from sqlalchemy.exc import OperationalError
+import hashlib
 
 # Ignore warnings
 warnings.filterwarnings(action='ignore')
@@ -72,8 +73,16 @@ sql_aries_creds_dict = sql_creds_dict.copy()
 sql_aries_creds_dict['db_name'] = 'Analytics_Aries'
 sql_creds_dict['db_name'] = 'Analytics'
 
+# Helper function to ensure each well has a valid fit_method
+def normalize_fit_method(m: str, default: str = 'curve_fit') -> str:
+    """Return a valid fit method, falling back to default if NULL/NaN."""
+    if m is None or (isinstance(m, float) and pd.isna(m)):
+        return default
+    m = str(m).strip().lower()
+    return m if m in {'curve_fit','monte_carlo','differential_evolution'} else default
+
 # Read method config
-fit_method  = method_params.get('setting', 'curve_fit')
+default_fit_method = normalize_fit_method(method_params.get('setting', 'curve_fit'), 'curve_fit')
 general_params = method_params.get('general', {}) or {}
 mc_config = method_params.get('monte_carlo', {}) or {}
 
@@ -93,12 +102,6 @@ fit_population = general_params['fit_population']
 # Initialize optional parameters for well_list and fit_group
 well_list = general_params.get('well_list', [])
 fit_group = general_params.get('fit_group', None)
-
-# Define batch_size based on fit_method
-if fit_method == 'monte_carlo':
-    batch_size = 50
-else:
-    batch_size = 50000
 
 # Load parameters from config file
 def_dict = arps_params['terminal_decline']
@@ -166,15 +169,18 @@ def create_statement_wells(population, manual_analyst, ta_offset_mos=12, new_dat
         well_list = []  
     if population == 'all':
         statement = '''
-        SELECT		WellID, Measure, LastProdDate
-        FROM		dbo.vw_FORECAST
-        WHERE		CumulativeProduction > 0
-        AND			(Analyst != ? OR Analyst IS NULL)
-        AND			LastProdDate > DATEADD(month, -?, GETDATE())
-        AND			(DATEDIFF(month, LastProdDate, DateCreated) >= ? OR DateCreated IS NULL)
-        ORDER BY	WellID, PHASE_INT
+        SELECT		F.WellID, F.Measure, F.LastProdDate,
+                    COALESCE(W.FitMethod, ?) AS FitMethod
+        FROM		dbo.WELL_HEADER W
+        INNER JOIN  dbo.vw_FORECAST F
+        ON          F.WellID = W.WellID
+        WHERE		F.CumulativeProduction > 0
+        AND			(F.Analyst != ? OR F.Analyst IS NULL)
+        AND			F.LastProdDate > DATEADD(month, -?, GETDATE())
+        AND			(DATEDIFF(month, F.LastProdDate, F.DateCreated) >= ? OR F.DateCreated IS NULL)
+        ORDER BY	F.WellID, F.PHASE_INT
         '''
-        params = (manual_analyst, ta_offset_mos, new_data_mos)
+        params = (default_fit_method, manual_analyst, ta_offset_mos, new_data_mos)
         return statement, params
     
     elif population == 'well_list':
@@ -182,21 +188,25 @@ def create_statement_wells(population, manual_analyst, ta_offset_mos=12, new_dat
             raise ValueError("well_list is empty, but population is set to 'well_list'.")
         sql_list = ', '.join(['?' for _ in well_list])
         statement = f'''
-        SELECT		WellID, Measure, LastProdDate
-        FROM		dbo.vw_FORECAST
-        WHERE		CumulativeProduction > 0
-        AND			(Analyst != ? OR Analyst IS NULL)
-        AND			WellID IN ({sql_list})
-        ORDER BY	WellID, PHASE_INT
+        SELECT		F.WellID, F.Measure, F.LastProdDate,
+                    COALESCE(W.FitMethod, ?) AS FitMethod
+        FROM		dbo.WELL_HEADER W
+        INNER JOIN  dbo.vw_FORECAST F
+        ON          F.WellID = W.WellID
+        WHERE		F.CumulativeProduction > 0
+        AND			(F.Analyst != ? OR F.Analyst IS NULL)
+        AND			F.WellID IN ({sql_list})
+        ORDER BY	F.WellID, F.PHASE_INT
         '''
-        params = (manual_analyst,) + tuple(well_list)
+        params = (default_fit_method, manual_analyst, *well_list)
         return statement, params
     
     elif population == 'fit_group':
         if not fit_group:
             raise ValueError("fit_group is not specified, but population is set to 'fit_group'.")
         statement = '''
-        SELECT		F.WellID, F.Measure, F.LastProdDate
+        SELECT		F.WellID, F.Measure, F.LastProdDate,
+                    COALESCE(W.FitMethod, ?) AS FitMethod
         FROM		dbo.WELL_HEADER W
         INNER JOIN  dbo.vw_FORECAST F
         ON          F.WellID = W.WellID
@@ -205,7 +215,7 @@ def create_statement_wells(population, manual_analyst, ta_offset_mos=12, new_dat
         AND			W.FitGroup = ?
         ORDER BY	F.WellID, F.PHASE_INT
         '''
-        params = (manual_analyst, fit_group)
+        params = (default_fit_method, manual_analyst, fit_group)
         return statement, params
     
     # If population doesn't match any valid option
@@ -726,49 +736,59 @@ def auto_forecast_partition(
         b_estimate_params, 
         dei_dict1, 
         default_b_dict, 
-        method, 
+        default_method, 
         use_advi, 
         smoothing_factor,
         save_trace
     ): 
+    def method_for(row):
+        return normalize_fit_method(row.get('FitMethod'), default_method)
+
     # Apply auto_forecast_wrapper to each row in the dataframe
     results = df.apply(
-        lambda row: pd.Series(auto_forecast(
-            row['WellID'],
-            row['Measure'],
+        lambda row: auto_forecast(
+            row['WellID'], 
+            row['Measure'], 
             row['LastProdDate'],
-            sql_creds_dict,
+            sql_creds_dict, 
             value_col,
-            bourdet_params,
-            changepoint_params,
+            bourdet_params, 
+            changepoint_params, 
             b_estimate_params,
-            dei_dict1,
+            dei_dict1, 
             default_b_dict,
-            method,
-            use_advi,
-            smoothing_factor,
+            method_for(row), 
+            use_advi, 
+            smoothing_factor, 
             save_trace
-        )).tolist(), axis=1
+        ),
+        axis=1
     )
-    out = pd.DataFrame(results.values.tolist(), index=df.index, columns=param_df_cols)
+    out = pd.DataFrame(list(results), index=df.index, columns=param_df_cols)
+
     gc.collect(); trim_memory()
     return out
+
+def chunk_fingerprint(df: pd.DataFrame) -> str:
+    # Use stable ordering and a minimal identity (WellID, Measure)
+    keys = tuple(zip(df['WellID'].tolist(), df['Measure'].tolist()))
+    h = hashlib.sha1(repr(keys).encode('utf-8')).hexdigest()[:16]
+    return h
 
 def load_processed_chunks(folder_path):
     file_path = os.path.join(folder_path, 'processed_chunks.csv')
     if os.path.exists(file_path):
-        df = pd.read_csv(file_path, header=None)
-        return set(df[0].astype(int))  # Convert to a set of integers
+        df = pd.read_csv(file_path, header=None, dtype=str)
+        return set(df[0].astype(str))  # set of fingerprints
     else:
         return set()
 
-def save_processed_chunk(chunk_index, folder_path):
+def save_processed_chunk(chunk_id: str, folder_path):
     file_path = os.path.join(folder_path, 'processed_chunks.csv')
-    # Append the chunk index to the CSV
-    df = pd.DataFrame([chunk_index])
+    df = pd.DataFrame([chunk_id])
     df.to_csv(file_path, mode='a', header=False, index=False)
 
-def main(client, folder_path, batch_size=batch_size, retries=5, delay=5, reset_every=6, mem_threshold_gb=9.0):
+def main(client, folder_path, retries=5, delay=5, reset_every=6, mem_threshold_gb=9.0):
     # Configure Lock
     sql_lock = Lock("sql_lock", client=client)
 
@@ -837,18 +857,36 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5, reset_e
             logging.info('No data to process.')
             break
 
-        # Calculate the number of splits based on batch_size
-        num_splits = int(np.ceil(rows_fetched / batch_size))
+        # Ensure FitMethod exists and has a default
+        if 'FitMethod' not in fcst_df.columns:
+            fcst_df['FitMethod'] = default_fit_method
+        fcst_df['FitMethod'] = fcst_df['FitMethod'].fillna(default_fit_method)
 
-        # Split fcst_df into smaller dataframes based on batch_size
-        fcst_chunks = np.array_split(fcst_df, num_splits)
+        # Split into MC vs other, then chunk each with its own batch size
+        mc_df = fcst_df[fcst_df['FitMethod'] == 'monte_carlo']
+        other_df = fcst_df[fcst_df['FitMethod'] != 'monte_carlo']
+
+        def split_by_size(df, bs):
+            if df.empty:
+                return []
+            n = int(np.ceil(len(df) / bs))
+            return np.array_split(df, n)
+
+        mc_chunks = split_by_size(mc_df, 50) # monte_carlo fits in batches of 50
+        other_chunks = split_by_size(other_df, 50000) # other fits in batches of 50000
+
+        # Final list of chunks to enqueue
+        fcst_chunks = mc_chunks + other_chunks
+        total_chunks = len(fcst_chunks)
+
         delayed_tasks, chunk_indices = [], []
         skipped = 0
         for i, fcst_chunk in enumerate(fcst_chunks):
-            if i in processed_chunks:
+            chunk_id = chunk_fingerprint(fcst_chunk)
+            if chunk_id in processed_chunks:
                 skipped += 1
                 continue
-            logging.info(f"Enqueuing chunk {i+1}/{num_splits} with {len(fcst_chunk)} rows")
+            logging.info(f"Enqueuing chunk {i+1}/{total_chunks} with {len(fcst_chunk)} rows")
             task = delayed(auto_forecast_partition)(
                 fcst_chunk,
                 sql_creds_dict,
@@ -858,16 +896,16 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5, reset_e
                 b_estimate_params,
                 dei_dict1,
                 default_b_dict,
-                fit_method,
+                default_fit_method,
                 use_advi,
                 smoothing_params['factor'],
                 save_trace
             )
             delayed_tasks.append(task)
-            chunk_indices.append(i)
+            chunk_indices.append((i, chunk_id))
 
         if skipped:
-            logging.info(f"Skipped {skipped}/{num_splits} already-processed chunk(s).")
+            logging.info(f"Skipped {skipped}/{total_chunks} already-processed chunk(s).")
 
         # If there is nothing left to run in this batch, exit the outer loop.
         if not delayed_tasks:
@@ -883,7 +921,7 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5, reset_e
             # 2) consume in arrival order
             need_restart = False
             for finished in as_completed(futures):
-                i = fut2idx[finished]
+                i, chunk_id = fut2idx[finished]
                 try:
                     res = finished.result()
                 except Exception as e:
@@ -927,9 +965,9 @@ def main(client, folder_path, batch_size=batch_size, retries=5, delay=5, reset_e
                             sql.load_data_to_sql(param_df, sql_creds_dict, schema.forecast_stage)
                             sql.execute_stored_procedure(sql_creds_dict, 'sp_InsertFromStagingToForecast')
 
-                        processed_chunks.add(i)
-                        save_processed_chunk(i, folder_path)
-                        logging.info(f"Chunk {i+1}/{num_splits} written successfully.")
+                        processed_chunks.add(chunk_id)
+                        save_processed_chunk(chunk_id, folder_path)
+                        logging.info(f"Chunk {i+1}/{total_chunks} written successfully.")
                         wrote_any = True
                         break
                     except OperationalError as e:
