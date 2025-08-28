@@ -65,7 +65,8 @@ CREATE TABLE dbo.WELL_HEADER (
 	DataSource					VARCHAR(64),
 	DateCreated					DATETIME,
 	FitGroup					VARCHAR(256),
-	Comment						VARCHAR(MAX)
+	Comment						VARCHAR(MAX),
+	FitMethod					VARCHAR(256),
 );
 
 -- Create table with completion header data
