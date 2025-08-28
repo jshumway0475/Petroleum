@@ -35,7 +35,7 @@ SELECT		W.*, C.IHS_Status, PC.Relationship, PC.ClosestHzDistance, PC.ClosestHzDi
 			END AS LL_BIN,
 			C.UpperPerf_FT, C.LowerPerf_FT, C.Isopach_FT, C.WaterSaturation_PCT, C.EffectivePorosity_PCT, 
 			C.ReservoirPressure_PSI, C.Bottom_Hole_Temp_DEGF, C.OilGravity_API, C.GasGravity_SG, W2.GOR, 
-			W2.WTR_CUT, W2.TotalProdMonths, W2.OilMaxMonth, W2.GasMaxMonth, W2.WaterMaxMonth, W2.PrimaryPhase, 
+			W2.WTR_CUT, W2.WTR_YIELD, W2.TotalProdMonths, W2.OilMaxMonth, W2.GasMaxMonth, W2.WaterMaxMonth, W2.PrimaryPhase, 
 			C.CompletionDataSource
 FROM		dbo.WELL_HEADER W
 INNER JOIN	dbo.WellHeaderMaterialized W2
