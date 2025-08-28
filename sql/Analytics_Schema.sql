@@ -58,7 +58,7 @@ CREATE TABLE dbo.WELL_HEADER (
 	AzimuthFromGridNorth_DEG	FLOAT, 
 	ToeUp						INT,
 	Geometry					GEOMETRY,
-	SourceEPSG					FLOAT,
+	SourceEPSG					INT,
 	CasingSize_IN				VARCHAR(256),        
 	TubingDepth_FT				FLOAT, 
 	TubingSize_IN				VARCHAR(256), 
@@ -66,7 +66,7 @@ CREATE TABLE dbo.WELL_HEADER (
 	DateCreated					DATETIME,
 	FitGroup					VARCHAR(256),
 	Comment						VARCHAR(MAX),
-	FitMethod					VARCHAR(256),
+	FitMethod					VARCHAR(256) CHECK (FitMethod IN ('curve_fit','monte_carlo','differential_evolution'))
 );
 
 -- Create table with completion header data
