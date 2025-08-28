@@ -214,7 +214,8 @@ CREATE TABLE dbo.WellHeaderMaterialized (
 	PrimaryPhase				VARCHAR(10),
 	Oil_Max_Month				FLOAT,
 	Gas_Max_Month				FLOAT,
-	Water_Max_Month				FLOAT
+	Water_Max_Month				FLOAT,
+	WTR_YIELD					FLOAT
 	FOREIGN KEY (WellID) 
 		REFERENCES dbo.WELL_HEADER(WellID)
 		ON DELETE CASCADE

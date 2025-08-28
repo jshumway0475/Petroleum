@@ -26,6 +26,7 @@ BEGIN
 			[WATER],
 			SUM(CASE WHEN COALESCE(OIL, 0.0) > 0.0 AND COALESCE(GAS, 0.0) > 0.0 THEN 1 ELSE 0 END) OVER (PARTITION BY WellID ORDER BY Date) AS MonthRankAsc_OG,
 			SUM(CASE WHEN COALESCE(OIL, 0.0) > 0.0 AND COALESCE(WATER, 0.0) > 0.0 THEN 1 ELSE 0 END) OVER (PARTITION BY WellID ORDER BY Date DESC) AS MonthRankDesc_OW,
+			SUM(CASE WHEN COALESCE(GAS, 0.0) > 0.0 AND COALESCE(WATER, 0.0) > 0.0 THEN 1 ELSE 0 END) OVER (PARTITION BY WellID ORDER BY Date DESC) AS MonthRankDesc_GW,
 			ROW_NUMBER() OVER (PARTITION BY WellID ORDER BY Date) AS DateRankAsc
 		FROM  (
 				SELECT	WellID, Date, Measure, Value
@@ -47,17 +48,18 @@ BEGIN
 					MAX(DateRankAsc) AS TotalProdMonths,
 					MAX(CASE WHEN DateRankAsc >= 12 THEN 0.0 ELSE OIL END) AS OilMaxMonth,
 					MAX(CASE WHEN DateRankAsc >= 12 THEN 0.0 ELSE GAS END) AS GasMaxMonth,
-					MAX(CASE WHEN DateRankAsc >= 12 THEN 0.0 ELSE WATER END) AS WaterMaxMonth
+					MAX(CASE WHEN DateRankAsc >= 12 THEN 0.0 ELSE WATER END) AS WaterMaxMonth,
+					SUM(CASE WHEN MonthRankDesc_GW <= 12 AND DateRankAsc > 3 THEN COALESCE(WATER, 0.0) END) / NULLIF(SUM(CASE WHEN MonthRankDesc_OW <= 12 AND DateRankAsc > 3 THEN COALESCE(GAS, 0.0) / 1000 END), 0.0) AS WTR_YIELD
 		FROM		PROD_PIVOT_CTE
 		GROUP BY	WellID
 	)
     INSERT INTO dbo.WellHeaderMaterialized (
         WellID, CurrentCompletionID, GOR, WTR_CUT, TotalProdMonths, PrimaryPhase, OilMaxMonth,
-		GasMaxMonth, WaterMaxMonth
+		GasMaxMonth, WaterMaxMonth, WTR_YIELD
     )
     SELECT		W.WellID, W.CurrentCompletionID, M.GOR, M.WTR_CUT, M.TotalProdMonths, 
 				CASE WHEN M.GOR < 3200 THEN 'OIL' ELSE 'GAS' END AS PrimaryPhase,
-				M.OilMaxMonth, M.GasMaxMonth, M.WaterMaxMonth
+				M.OilMaxMonth, M.GasMaxMonth, M.WaterMaxMonth, M.WTR_YIELD
     FROM		dbo.WELL_HEADER W
     LEFT JOIN	METRICS_CTE M
 	ON			W.WellID = M.WellID;
