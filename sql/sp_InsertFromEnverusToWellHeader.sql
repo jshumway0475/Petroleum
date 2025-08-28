@@ -69,7 +69,7 @@ BEGIN
 		AzimuthFromGridNorth_DEG	FLOAT, 
 		ToeUp						INT,
 		Geometry					VARCHAR(MAX),
-		SourceEPSG					FLOAT,
+		SourceEPSG					INT,
 		CasingSize_IN				VARCHAR(256),        
 		TubingDepth_FT				FLOAT, 
 		TubingSize_IN				VARCHAR(256), 
@@ -77,7 +77,8 @@ BEGIN
 		DateCreated					DATETIME DEFAULT GETDATE(),
 		UpdatedDate					DATETIME,
 		FitGroup					VARCHAR(256),
-		Comment						VARCHAR(MAX)
+		Comment						VARCHAR(MAX),
+		FitMethod					VARCHAR(256)
 	);
 
 	DECLARE @currentDate DATETIME = GETDATE();
@@ -234,7 +235,8 @@ BEGIN
 		[DateCreated],
 		[UpdatedDate],
 		[FitGroup],
-		[Comment]
+		[Comment],
+		[FitMethod]
 	)
 	SELECT		B.WellID, W.CompletionID AS CurrentCompletionID, W.API_UWI_Unformatted, W.LeaseName, W.WellName, NULL AS WellNumber,
 				W.WellPadID, W.Latitude, W.Latitude_BH, W.Longitude, W.Longitude_BH, W.Country, W.StateProvince, W.County, W.Township, 
@@ -244,7 +246,7 @@ BEGIN
 				COALESCE(W.RigReleaseDate, W.ENVRigReleaseDate) AS RigReleaseDate, COALESCE(W.FirstProdDate, W.ENVFirstProdDate) AS FirstProdDate,
 				W.MD_FT, W.TVD_FT, W.ElevationGL_FT, W.Trajectory, W.LateralLength_FT, W.AzimuthFromGridNorth_DEG, W.ToeUp, 
 				COALESCE(W.Geometry, W.ENVGeometry) AS Geometry, COALESCE(W.EPSG, W.ENVEPSG) AS SourceEPSG, CSG.CasingSize_IN, TBG.TubingDepth_FT,
-				TBG.TubingSize_IN, W.DataSource, @currentDate AS DateCreated, W.UpdatedDate, NULL AS FitGroup, NULL AS Comment
+				TBG.TubingSize_IN, W.DataSource, @currentDate AS DateCreated, W.UpdatedDate, NULL AS FitGroup, NULL AS Comment, NULL AS FitMethod
 	FROM		BaseCTE B
 	LEFT JOIN	COMP_CTE W ON B.WellID = W.WellID
 	LEFT JOIN	CSG_CTE CSG ON B.WellID = CSG.WellID
@@ -367,7 +369,8 @@ BEGIN
 				[DataSource],
 				[DateCreated],
 				[FitGroup],
-				[Comment]
+				[Comment],
+				[FitMethod]
 			)
 			VALUES (
 				Source.[WellID],
@@ -422,7 +425,8 @@ BEGIN
 				Source.[DataSource],
 				Source.[UpdatedDate],
 				Source.[FitGroup],
-				Source.[Comment]
+				Source.[Comment],
+				Source.[FitMethod]
 			);
         
 		PRINT CAST(@@ROWCOUNT AS NVARCHAR(50)) + ' rows merged into WELL_HEADER from Enverus source data';
