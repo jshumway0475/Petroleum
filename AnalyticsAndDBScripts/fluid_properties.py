@@ -9,6 +9,18 @@ properties are important for reservoir engineering calculations such as material
 analysis, and production forecasting.
 '''
 
+# Helper function to convert input to float, returns default value if conversion fails
+def _to_float(x, default=0.0):
+    try:
+        if x is None:
+            return float(default)
+        v = float(x)
+        if np.isnan(v):
+            return float(default)
+        return v
+    except Exception:
+        return float(default)
+
 # Calculation of pseudo critical Temperature for Natural Gases, units in deg R (McCain Petroleum Fluids, pp. 120, 512)
 def Tpc(sg, co2=0.0, h2s=0.0):
     '''
@@ -478,6 +490,8 @@ def free_gas_saturation(p, t, gor, api, sg, wtr_sat, co2=0.0, h2s=0.0, sro=0.3, 
     return gas_sat, oil_sat, rsb, pb, bo, bg, mu_o, mu_g
 
 # Gas Processing Calculations
+_STD_PSI = 14.696
+
 # Helper function to for by component calculations
 def gas_processing(grs_vol, shrink_init, mol_pct, ideal_liquid_content, ideal_btu, pct_recovery, base_psi=14.65):
     '''
@@ -495,9 +509,26 @@ def gas_processing(grs_vol, shrink_init, mol_pct, ideal_liquid_content, ideal_bt
         extracted_btu: Btu content extracted from the gas gas at the plant outlet in Btu/scf
         reduced_mol_pct: reduced molar fraction of the gas
     '''
-    processed_vol = grs_vol * 1000 * (1 - shrink_init)
-    recovered_gals = (mol_pct / (ideal_liquid_content * 14.696 / base_psi) * pct_recovery) * processed_vol
-    wet_btu = mol_pct * ideal_btu * base_psi / 14.696
+    # Sanitize and clamp inputs
+    grs_vol = _to_float(grs_vol, 0.0)
+    shrink_init = np.clip(_to_float(shrink_init, 0.0), 0.0, 0.999999)
+    mol_pct = max(_to_float(mol_pct, 0.0), 0.0)
+    ideal_liquid_content = max(_to_float(ideal_liquid_content, 0.0), 0.0)
+    ideal_btu = max(_to_float(ideal_btu, 0.0), 0.0)
+    pct_recovery = np.clip(_to_float(pct_recovery, 0.0), 0.0, 1.0)
+    base_psi = _to_float(base_psi, _STD_PSI)
+
+    if base_psi <= 0 or not np.isfinite(base_psi):
+        base_psi = _STD_PSI
+
+    # Perform calculations
+    processed_vol = max(0.0, grs_vol * 1000.0 * (1.0 - shrink_init))
+    wet_btu = mol_pct * ideal_btu * base_psi / _STD_PSI
+    if ideal_liquid_content > 0:
+        denom = ideal_liquid_content * (_STD_PSI / base_psi)
+        recovered_gals = (mol_pct / denom) * pct_recovery * processed_vol
+    else:
+        recovered_gals = 0.0
     extracted_btu = wet_btu * pct_recovery
     reduced_mol_pct = mol_pct * (1 - pct_recovery)
 
@@ -555,10 +586,11 @@ def gas_processing_batch(grs_vol, shrink_init, mol_pct, ideal_liquid_content, id
     
     # Sum results for reduced_mol_pct for all components
     total_reduced_mol_pct = sum(v['reduced_mol_pct'] for v in results.values())
+    den = total_reduced_mol_pct if total_reduced_mol_pct > 0 else 1.0
 
     # Calculate residue btu for each component and append to results
     for comp, val in results.items():
-        val['residue_btu'] = val['reduced_mol_pct'] / total_reduced_mol_pct * val['btu_cont'] * base_psi / 14.696
+        val['residue_btu'] = val['reduced_mol_pct'] / den * val['btu_cont'] * (base_psi / _STD_PSI)
         val.pop('reduced_mol_pct', None)
         val.pop('btu_cont', None)
 
