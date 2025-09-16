@@ -1,19 +1,24 @@
 import os
-import numpy as np
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 import geopandas as gpd
 import pandas as pd
 from config.config_loader import get_config
 import AnalyticsAndDBScripts.sql_connect as sql
 import AnalyticsAndDBScripts.sql_schemas as schema
 import AnalyticsAndDBScripts.well_spacing as ws
-from concurrent.futures import as_completed
-from multiprocessing import Lock, Manager
-from loky import get_reusable_executor, wrap_non_picklable_objects
+from multiprocessing import Manager
+from loky import wrap_non_picklable_objects
 import gc
 import warnings
+import faulthandler
+try:
+    from shapely import to_wkt as _to_wkt
+except Exception:
+    _to_wkt = None
 
 # Ignore warnings
 warnings.filterwarnings(action='ignore')
+faulthandler.enable()
 
 # Path to the config file
 config_path = os.getenv("CONFIG_PATH")
@@ -152,18 +157,30 @@ def process_data(args):
         def split_dataframe_generator(df, chunk_size):
             nrows = df.shape[0]
             for i in range(0, nrows, chunk_size):
-                yield df.loc[i:i + chunk_size - 1]
+                yield df.iloc[i:i + chunk_size].copy()
 
         # Columns that contain spatial data
         geometry_columns = ['clipped_lateral_geometry', 'lateral_geometry_buffer', 'clipped_neighbor_lateral_geometry', 'neighbor_lateral_geometry_buffer']
 
-        for chunk in split_dataframe_generator(df, 500000):
-            # Reproject geometries from EPSG:6579 to defined projection
+        # Tame native thread fan-out during heavy ops
+        for chunk in split_dataframe_generator(df, 500_000):
+
+            # Reproject geometries from EPSG:6579 to defined projection (lightweight GeoSeries path)
             for col in geometry_columns:
-                gdf = gpd.GeoDataFrame(chunk, geometry=col, crs='EPSG:6579')
-                gdf = gdf.to_crs(projection)
-                chunk[col] = gdf.geometry
-            chunk = chunk.map(ws.geom_to_wkt)
+                gs = gpd.GeoSeries(chunk[col], crs='EPSG:6579').to_crs(projection)
+                chunk.loc[:, col] = gs.to_numpy()
+                del gs
+
+            # Convert only geometry columns to WKT for SQL load
+            if _to_wkt is not None:
+                for col in geometry_columns:
+                    chunk.loc[:, col] = _to_wkt(chunk[col])
+            else:
+                # Fallback for Shapely < 2.0
+                for col in geometry_columns:
+                    chunk.loc[:, col] = chunk[col].apply(lambda g: None if g is None else g.wkt)
+
+            # Write this chunk to staging
             sql.load_data_to_sql(chunk, sql_creds_dict, schema.well_spacing_stage, lock)
             del chunk
             gc.collect()
@@ -184,12 +201,9 @@ with Manager() as manager:
     lock = manager.Lock()
     args_list = ((fit_groups_config, group, projection, min_lat_length, min_vintage, day_offset, update_date, sql_creds_dict, lock) for group in fit_group_list)
 
-    with get_reusable_executor(max_workers=1) as executor:
-        futures = (executor.submit(process_data, args) for args in args_list)
-
-        for future in as_completed(futures):
-            try:
-                future.result()  # Get the result to catch any exceptions
-            except Exception as exc:
-                print(f'Generated an exception: {exc}')
-                gc.collect()
+    for args in args_list:
+        try:
+            process_data(args)
+        except Exception as exc:
+            print(f'Generated an exception: {exc}')
+            gc.collect()
