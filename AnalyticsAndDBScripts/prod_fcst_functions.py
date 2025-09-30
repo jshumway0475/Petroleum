@@ -1,17 +1,16 @@
-from logging import config
 import numpy as np
 import ruptures as rpt
 from petbox import dca
 import statsmodels.api as sm
 import scipy.stats
 import pytensor.tensor as pt
-import arviz as az
 import pymc as pm
 from scipy.optimize import curve_fit, differential_evolution
 from functools import partial
 import numbers
 from typing import Tuple, Dict
 import gc
+
 
 # Create MonthDiff function to calculate time difference in months
 def MonthDiff(BaseDate, StartDate):
@@ -57,24 +56,23 @@ def arps_decline(UID, phase, Qi, Dei, Def, b, t, prior_cum=0, prior_t=0):
         Type = 'har'
         Dn = Dei / (1 - Dei)
         Qlim = Qi * ((-np.log(1 - Def)) / Dn)
-        tlim = (((Qi / Qlim) - 1) / Dn) * 12 # output in months
+        tlim = (((Qi / Qlim) - 1) / Dn) * 12  # output in months
     else:
         Type = 'hyp'
         Dn = (1 / b) * (((1 - Dei) ** -b) - 1)
         Qlim = Qi * ((-np.log(1 - Def)) / Dn) ** (1 / b)
-        tlim = ((((Qi / Qlim) ** b) - 1) / ( b * Dn)) * 12 # output in months
-    
+        tlim = ((((Qi / Qlim) ** b) - 1) / (b * Dn)) * 12  # output in months
+
     # Generate volumes
     if Type == 'hyp':
         Dn_t = Dn / (1 + b * Dn * (t / 12))
         De_t = 1 - (1 / ((Dn_t * b) + 1)) ** (1 / b)
         if De_t > Def:
-            q = Qi * (1 + b * Dn * (t / 12)) ** (-1/b)
+            q = Qi * (1 + b * Dn * (t / 12)) ** (-1 / b)
             Np = ((Qi ** b) / (Dn * (1 - b))) * ((Qi ** (1 - b)) - (q ** (1 - b))) * 365
         else:
             q = Qlim * np.exp(-(-np.log(1 - Def)) * ((t - tlim) / 12))
-            Np = ((Qlim - q) / (-np.log(1 - Def)) * 365) + (((Qi ** b) / 
-                    (Dn * (1 - b))) * ((Qi ** (1 - b)) - (Qlim ** (1 - b))) * 365)
+            Np = ((Qlim - q) / (-np.log(1 - Def)) * 365) + (((Qi ** b) / (Dn * (1 - b))) * ((Qi ** (1 - b)) - (Qlim ** (1 - b))) * 365)  # noqa
             De_t = Def
     elif Type == 'har':
         Dn_t = Dn / (1 + Dn * (t / 12))
@@ -90,8 +88,9 @@ def arps_decline(UID, phase, Qi, Dei, Def, b, t, prior_cum=0, prior_t=0):
         q = Qi * np.exp(-(-np.log(1 - Dei)) * (t / 12))
         Np = (Qi - q) / (-np.log(1 - Dei)) * 365
         De_t = Dei
-    
+
     return UID, phase, t + prior_t, q, De_t, Np + prior_cum
+
 
 # Vectorize the arps_decline function to allow it to work with numpy arrays
 varps_decline = np.vectorize(arps_decline, otypes=[float, float, float, float, float, float])
@@ -132,7 +131,7 @@ def arps_q_pt(t_mo, Qi, Dei, Def, b, exp_tol=1e-10):
 def arps_q_np(t_mo, Qi, Dei, Def, b):
     if np.isclose(Dei, Def):
         D_day = -np.log(1.0 - Dei) / 365.0
-        t_d = np.asarray(t_mo, float) * (365.0/12.0)
+        t_d = np.asarray(t_mo, float) * (365.0 / 12.0)
         return Qi * np.exp(-D_day * t_d)
     eps = 1e-8
     b_ = np.maximum(b, eps)
@@ -155,7 +154,7 @@ def _coarse_grid_best(t, q, Qi_guess, Dei_low, Dei_guess, Dei_high, b_low, b_gue
     Very small 3x3 grid around guesses to get a robust seed for bounded curve_fit.
     Returns [Qi0, Dei0, b0].
     """
-    Qi_grid = np.array([Qi_guess*0.85, Qi_guess, Qi_guess*1.15], float)
+    Qi_grid = np.array([Qi_guess * 0.85, Qi_guess, Qi_guess * 1.15], float)
     Dei_grid = np.array([Dei_low, Dei_guess, Dei_high], float)
     b_grid = np.array([max(0.05, b_low), b_guess, b_high], float)
 
@@ -195,7 +194,7 @@ def exp_Dei(Qi, Qf, duration):
 
 
 # Function to manage multiple segments
-def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, prior_cum=0, prior_t=0):
+def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, prior_cum=0, prior_t=0):  # noqa
     '''
     Args:
     - UID is a unique identifier for the well such as API, must be a number
@@ -241,7 +240,7 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, p
         segment_ct = 0
     else:
         segment_ct = 1
-    
+
     # 3 segment logic
     if segment_ct == 3:
         t_seg1 = np.arange(0, t1 + 1, 1)
@@ -254,13 +253,13 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, p
         prior_cum1 = np.max(seg1_arr[5])
         seg2 = varps_decline(UID, phase, Q2, Dei2, Dei2, 1.0, t_seg2, prior_cum1, t1)
         seg2_arr = np.array(seg2)
-        prior_cum2= np.max(seg2_arr[5])
+        prior_cum2 = np.max(seg2_arr[5])
         seg3 = varps_decline(UID, phase, Q3, Dei, Def, b, t_seg3, prior_cum2, t1 + t2)
         seg3_arr = np.array(seg3)
         # Filter out months where production is less than Qabn
         if Qabn > 0:
             Qabn_filter = seg3_arr[3] >= Qabn
-            seg3_arr = seg3_arr[:,Qabn_filter]
+            seg3_arr = seg3_arr[:, Qabn_filter]
         out_nparr = np.column_stack((seg1_arr, seg2_arr, seg3_arr))
     elif segment_ct == 2:
         t_seg1 = np.arange(0, t1 + 1, 1)
@@ -274,7 +273,7 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, p
         # Filter out months where production is less than Qabn
         if Qabn > 0:
             Qabn_filter = seg3_arr[3] >= Qabn
-            seg3_arr = seg3_arr[:,Qabn_filter]
+            seg3_arr = seg3_arr[:, Qabn_filter]
         out_nparr = np.column_stack((seg1_arr, seg3_arr))
     elif segment_ct == 1:
         t_seg3 = np.arange(0, duration + 1, 1)
@@ -283,7 +282,7 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, p
         # Filter out months where production is less than Qabn
         if Qabn > 0:
             Qabn_filter = out_nparr[3] >= Qabn
-            out_nparr = out_nparr[:,Qabn_filter]
+            out_nparr = out_nparr[:, Qabn_filter]
     else:
         t = np.arange(0, duration + 1, 1)
         UID_arr = np.full_like(t, UID, dtype=float)
@@ -292,16 +291,17 @@ def arps_segments(UID, phase, Q1, Q2, Q3, Dei, Def, b, Qabn, t1, t2, duration, p
         De = np.zeros_like(t, dtype=float)
         Np = np.zeros_like(t, dtype=float)
         out_nparr = np.vstack([UID_arr, phase_arr, t, q, De, Np])
-    
+
     # Add monthly volumes to array
     Cum_i = out_nparr[5][:-1]
     Cum_f = out_nparr[5][1:]
     cum = Cum_f - Cum_i
     cum[cum < 0] = 0
     cum = np.insert(cum, 0, 0)
-    out_nparr = np.vstack((out_nparr, cum))[:,1:]
-    
+    out_nparr = np.vstack((out_nparr, cum))[:, 1:]
+
     return out_nparr
+
 
 # Detect change points in production data
 def detect_changepoints(df, id_col, prod_col, date_col, pen):
@@ -312,21 +312,24 @@ def detect_changepoints(df, id_col, prod_col, date_col, pen):
     - id_col (str): Column name identifying each unique property or well.
     - prod_col (str): Column name containing the production data values.
     - date_col (str): Column name containing the date information.
-    - pen (float): Penalty value influencing the sensitivity of change point detection. Higher values lead to fewer detected change points.
+    - pen (float): Penalty value influencing the sensitivity of change point detection.
+                   Higher values lead to fewer detected change points.
     Returns:
-    - DataFrame: Modified DataFrame with an additional column 'segment' indicating the segment number for each data point.
+    - DataFrame: Modified DataFrame with an additional column 'segment' indicating the
+                 segment number for each data point.
     Example Use:
     This function should be applied to partitions of the DataFrame. For example:
     - prod_df_oil = prod_df[prod_df['Measure'] == 'OIL'].groupby(['WellID', 'FitGroup']).apply(detect_changepoints, 'WellID', 'Value', 'Date', 10)
     - prod_df_gas = prod_df[prod_df['Measure'] == 'GAS'].groupby(['WellID', 'FitGroup']).apply(detect_changepoints, 'WellID', 'Value', 'Date', 10)
     - prod_df_wtr = prod_df[prod_df['Measure'] == 'WATER'].groupby(['WellID', 'FitGroup']).apply(detect_changepoints, 'WellID', 'Value', 'Date', 10)
 
-    Note: The function sorts the data by the date column and assigns segment numbers based on detected change points. Segments are determined by significant changes in the production data trend.
-    '''
+    Note: The function sorts the data by the date column and assigns segment numbers based on detected change points
+          Segments are determined by significant changes in the production data trend.
+    '''  # noqa
     # Create a new column for the segment numbers
     df = df.copy()
     df['segment'] = 0
-    
+
     # Get the list of unique properties
     properties = df[id_col].unique()
 
@@ -357,6 +360,7 @@ def detect_changepoints(df, id_col, prod_col, date_col, pen):
             df.loc[idx, 'segment'] = segment_number
 
     return df
+
 
 # Function to apply the bourdet derivative production data
 def bourdet_outliers(y, x, L, xlog, ylog, z_threshold=2, min_array_size=6):
@@ -416,7 +420,8 @@ def bourdet_outliers(y, x, L, xlog, ylog, z_threshold=2, min_array_size=6):
         x = x[final_selection]
 
         return y, x
-    
+
+
 # Function to derive b_factor from raw production data
 def b_factor_diagnostics(df, rate_col, time_col, cadence='monthly', smoothing_factor=2, min_months=24, max_months=60):
     '''
@@ -448,13 +453,13 @@ def b_factor_diagnostics(df, rate_col, time_col, cadence='monthly', smoothing_fa
     else:
         min_time = round(min_months * 365.25 / 12, 0)
         max_time = round(max_months * 365.25 / 12, 0)
-    
-    best_max_time = min_time # Generally assume that 1 year of monthly data is needed
+
+    best_max_time = min_time  # Generally assume that 1 year of monthly data is needed
     results = {}
 
     # Filter df to exclude rows where rate_col is 0 or negative and any values before the maximum rate
     df = df[df[rate_col] > 0].reset_index(drop=True)
-    
+
     # Check if df is empty after filtering
     if df.empty:
         return None  # Return None early if DataFrame is empty
@@ -462,7 +467,7 @@ def b_factor_diagnostics(df, rate_col, time_col, cadence='monthly', smoothing_fa
     is_max_value = df[rate_col] == df[rate_col].max()
     last_max_index = is_max_value[::-1].idxmax()
     df = df.loc[last_max_index:].reset_index(drop=True)
-    
+
     # Check if the length of df is less than min_months
     if len(df) < min_months:
         return None  # Return None early if there are not enough data points
@@ -471,14 +476,19 @@ def b_factor_diagnostics(df, rate_col, time_col, cadence='monthly', smoothing_fa
     if smoothing_factor > 0:
         for i in range(smoothing_factor):
             df[rate_col] = df[rate_col].rolling(window=3, min_periods=1).mean()
-    
+
     for time_limit in range(min_time, max_time + 1):  # Assuming time_col values are integers
         temp_df = df[df[time_col] <= time_limit].copy()
-        temp_df['nominal_decline'] = np.log(temp_df[rate_col].shift(1) / temp_df[rate_col]) / (temp_df[time_col] - temp_df[time_col].shift(1))
+        temp_df['nominal_decline'] = (
+            np.log(temp_df[rate_col].shift(1) / temp_df[rate_col]) / (temp_df[time_col] - temp_df[time_col].shift(1))
+        )
         temp_df['b_integral'] = (1 - temp_df['nominal_decline']) / (temp_df['nominal_decline'])
 
-        # Filter b_integral such that it results in a reasonable range of b_factors (0.001 as nearly exponential and 3.0 as an upper limit for b-factor)
-        temp_df = temp_df[(temp_df['b_integral'] > 0.001 * temp_df[time_col]) & (temp_df['b_integral'] < 3.0 * temp_df[time_col])]
+        # Filter b_integral such that it results in a reasonable range of b_factors (0.001 as nearly exponential and 3.0 as an upper limit for b-factor)  # noqa
+        temp_df = temp_df[
+            (temp_df['b_integral'] > 0.001 * temp_df[time_col]) &
+            (temp_df['b_integral'] < 3.0 * temp_df[time_col])
+        ]
 
         # Fit model and check R^2
         if not temp_df.empty:
@@ -503,6 +513,7 @@ def b_factor_diagnostics(df, rate_col, time_col, cadence='monthly', smoothing_fa
     else:
         return None  # In case all iterations result in an empty DataFrame or no improvement in R^2
 
+
 # Function to calculate goodness of fit metrics between actual and predicted production data
 def calc_goodness_of_fit(q_act, q_pred):
     q_act = np.asarray(q_act, float)
@@ -511,17 +522,20 @@ def calc_goodness_of_fit(q_act, q_pred):
         r_squared = 0.0
     else:
         r, _ = scipy.stats.pearsonr(q_act, q_pred)
-        r_squared = float(r*r)
+        r_squared = float(r * r)
     rmse = float(np.sqrt(np.mean((q_act - q_pred)**2)))
-    mae  = float(np.mean(np.abs(q_act - q_pred)))
+    mae = float(np.mean(np.abs(q_act - q_pred)))
     return r_squared, rmse, mae
+
 
 # Functions to build reusable PyMC models
 _MODEL_CACHE: Dict[Tuple, Tuple[pm.Model, dict]] = {}  # Reusable PyMC model cache
 
+
 def _model_key(optimize_names, include_deterministics: bool, use_fixed_nu: bool):
     prior_sig = "b:triangular;Dei:gapBeta22"
     return (tuple(sorted(optimize_names)), bool(include_deterministics), bool(use_fixed_nu), prior_sig)
+
 
 # --- PyMC data helper for PyMC3/4/5 compatibility ---
 def _md(name, value):
@@ -529,6 +543,7 @@ def _md(name, value):
     if hasattr(pm, "MutableData"):
         return pm.MutableData(name, value)
     return pm.Data(name, value)
+
 
 def _build_pymc_model(optimize_names, include_deterministics=False, use_fixed_nu=True):
     """
@@ -564,8 +579,9 @@ def _build_pymc_model(optimize_names, include_deterministics=False, use_fixed_nu
 
         # Triangular prior for b-factor with mode at the guess
         def _bounded_triangular(name):
-            lo = handles[f"lo_{name}"]; hi = handles[f"hi_{name}"]
-            c  = handles[f"center_{name}"]
+            lo = handles[f"lo_{name}"]
+            hi = handles[f"hi_{name}"]
+            c = handles[f"center_{name}"]
             width = pm.math.clip(hi - lo, 1e-12, np.inf)
             u_mode = pm.math.clip((c - lo) / width, 1e-6, 1 - 1e-6)
             u = pm.Triangular(f"{name}_u", lower=0.0, upper=1.0, c=u_mode)
@@ -600,23 +616,24 @@ def _build_pymc_model(optimize_names, include_deterministics=False, use_fixed_nu
             pm.StudentT("Y_obs", nu=handles["nu_fixed"], mu=log_q_mu, sigma=sigma,
                         observed=pm.math.log(q_obs + 1e-9))
         else:
-            nu = pm.Exponential("nu_raw", 1/5) + 2.0
+            nu = pm.Exponential("nu_raw", 1 / 5) + 2.0
             pm.StudentT("Y_obs", nu=nu, mu=log_q_mu, sigma=sigma,
                         observed=pm.math.log(q_obs + 1e-9))
 
     return model, handles
 
+
 # Function to perform curve fitting with dynamic parameter optimization
-def perform_curve_fit(
-        t_act, 
-        q_act, 
-        initial_guess, 
-        bounds, 
-        config, 
-        method='curve_fit', 
-        trials=1000, 
+def perform_curve_fit(  # noqa
+        t_act,
+        q_act,
+        initial_guess,
+        bounds,
+        config,
+        method='curve_fit',
+        trials=1000,
         use_advi=False,
-        *, 
+        *,
         include_deterministics=False,
         log_likelihood=False,
         return_trace=True
@@ -699,6 +716,29 @@ def perform_curve_fit(
     if overlap:
         raise ValueError(f"Parameters cannot be both optimized and fixed: {sorted(overlap)}")
 
+    def _normalize_bounds(bounds_in, expected_len):
+        """
+        Always return a list of (lo_i, hi_i) pairs of expected length.
+        Accepts either (lo, hi) for a single param or (lows, highs) sequences.
+        """
+        if isinstance(bounds_in[0], numbers.Real):
+            out = [(float(bounds_in[0]), float(bounds_in[1]))]
+        else:
+            lows, highs = bounds_in
+            lows = np.asarray(lows, float).ravel()
+            highs = np.asarray(highs, float).ravel()
+            if lows.shape != highs.shape:
+                raise ValueError(f"bounds lows/highs shape mismatch: {lows.shape} vs {highs.shape}")
+            out = [(float(lo), float(hi)) for lo, hi in zip(lows, highs)]
+        if len(out) != expected_len:
+            raise ValueError(f"bounds length {len(out)} != expected {expected_len}")
+        return out
+
+    opt_names = list(config["optimize"])
+    b_pairs_norm = _normalize_bounds(bounds, expected_len=len(opt_names))
+    lo_vec = np.array([p[0] for p in b_pairs_norm], dtype=float)
+    hi_vec = np.array([p[1] for p in b_pairs_norm], dtype=float)
+
     def arps_fit(t, Qi, Dei, b, Def):
         return arps_q_np(t, Qi, Dei, Def, b)
 
@@ -708,14 +748,14 @@ def perform_curve_fit(
 
     # Dynamically construct the model function based on which parameters are being optimized
     def model_func(t, *params, method=method):
-        param_values = {param_name: value for param_name, value in zip(config["optimize"], params)}
+        param_values = dict(zip(config["optimize"], params))
         for fixed_param, fixed_value in config["fixed"].items():
             param_values[fixed_param] = fixed_value
         if method == 'monte_carlo':
             return arps_fit_mc(t, param_values["Qi"], param_values["Dei"], param_values["b"], param_values["Def"])
         else:
             return arps_fit(t, param_values["Qi"], param_values["Dei"], param_values["b"], param_values["Def"])
-    
+
     def convert_bounds(bounds):
         if isinstance(bounds[0], numbers.Real):
             return [(float(bounds[0]), float(bounds[1]))]
@@ -728,7 +768,7 @@ def perform_curve_fit(
         # First use curve_fit to get the initial parameter estimates
         # Hygiene before warm-start (avoid zeros/NaNs):
         def wrapped_model_func_np(t, *params):
-            p = {n: v for n, v in zip(config["optimize"], params)}
+            p = dict(zip(config["optimize"], params))
             p.update(config["fixed"])
             return arps_q_np(t, p["Qi"], p["Dei"], p["Def"], p["b"])
 
@@ -736,68 +776,88 @@ def perform_curve_fit(
         try:
             opt_names = config["optimize"]
             fixed = config["fixed"]
-            b_pairs = convert_bounds(bounds)
-            lo = np.array([p[0] for p in b_pairs], dtype=float)
-            hi = np.array([p[1] for p in b_pairs], dtype=float)
+            lo = lo_vec
+            hi = hi_vec
             tmp = dict(zip(opt_names, initial_guess))
-            Qi_guess = tmp.get("Qi",  fixed.get("Qi"))
+            Qi_guess = tmp.get("Qi", fixed.get("Qi"))
             Dei_guess = tmp.get("Dei", fixed.get("Dei"))
             b_guess = tmp.get("b", fixed.get("b"))
             Def_val = tmp.get("Def", fixed.get("Def"))
-            if "Dei" in opt_names:
-                i = opt_names.index("Dei"); Dei_low, Dei_high = lo[i], hi[i]
+
+            # Fast lookup for parameter indices in opt_names
+            idx = {n: i for i, n in enumerate(opt_names)}
+
+            # Dei bounds for coarse grid (or ±20% around guess if not optimized)
+            if "Dei" in idx:
+                i = idx["Dei"]
+                Dei_low, Dei_high = lo[i], hi[i]
             else:
-                Dei_low, Dei_high = Dei_guess*0.8, Dei_guess*1.2
-            # If Def is fixed, enforce Dei_low >= Def for the coarse grid too
-            if "Def" not in opt_names and Def_val is not None:
+                Dei_low, Dei_high = Dei_guess * 0.8, Dei_guess * 1.2
+
+            # If Def is fixed, ensure Dei_low >= Def for the coarse grid
+            if "Def" not in idx and Def_val is not None:
                 Dei_low = max(Dei_low, float(Def_val))
-            if "b" in opt_names:
-                i = opt_names.index("b"); b_low, b_high = lo[i], hi[i]
+
+            # b bounds for coarse grid (or around guess if not optimized)
+            if "b" in idx:
+                i = idx["b"]
+                b_low, b_high = lo[i], hi[i]
             else:
-                b_low, b_high = max(0.3, b_guess*0.8), min(2.0, b_guess*1.2)
-            if all(v is not None for v in [Qi_guess, Dei_guess, b_guess, Def_val]):
+                b_low = max(0.3, b_guess * 0.8)
+                b_high = min(2.0, b_guess * 1.2)
+
+            # Run tiny coarse grid only if all seeds exist
+            if all(v is not None for v in (Qi_guess, Dei_guess, b_guess, Def_val)):
                 g0 = _coarse_grid_best(
-                    t_act, 
-                    q_act, 
-                    Qi_guess, 
-                    Dei_low, 
-                    Dei_guess, 
-                    Dei_high, 
-                    b_low, 
-                    b_guess, 
-                    b_high, 
+                    t_act,
+                    q_act,
+                    Qi_guess,
+                    Dei_low,
+                    Dei_guess,
+                    Dei_high,
+                    b_low,
+                    b_guess,
+                    b_high,
                     Def_val
                 )
-                ig = []
-                for name in opt_names:
-                    if name == "Qi":  ig.append(g0[0])
-                    elif name == "Dei": ig.append(g0[1])
-                    elif name == "b": ig.append(g0[2])
-                    elif name == "Def": ig.append(Def_val)
-                initial_guess = ig
+
+                # Map coarse-grid outputs back to the order in opt_names, only if complete
+                val_map = {"Qi": g0[0], "Dei": g0[1], "b": g0[2], "Def": Def_val}
+                ig_new = []
+                ok_seed = True
+                for n in opt_names:
+                    v = val_map.get(n, None)
+                    if v is None:
+                        ok_seed = False
+                        break
+                    ig_new.append(float(v))
+                if ok_seed:
+                    initial_guess = ig_new
+
         except Exception:
+            # Swallow coarse-grid issues; downstream curve_fit handles warm start fallback
             pass
 
         # Then bounded curve_fit for a MAP-style warm start
         curve_ok = True
         try:
-            b_pairs = convert_bounds(bounds)
-            cf_bounds = (
-                np.array([p[0] for p in b_pairs], dtype=float),
-                np.array([p[1] for p in b_pairs], dtype=float),
-            )
+            # sanitize IG strictly inside bounds
+            ig_arr = np.asarray(initial_guess, float)
+            if ig_arr.size != len(opt_names):
+                raise ValueError(f"initial_guess len {ig_arr.size} != {len(opt_names)}")
+            eps = 1e-9 * np.maximum(1.0, np.abs(hi_vec - lo_vec))
+            ig_arr = np.clip(ig_arr, lo_vec + eps, hi_vec - eps)
             popt, _ = curve_fit(
-                wrapped_model_func_np, 
-                t_act, 
-                q_act, 
-                p0=initial_guess, 
-                bounds=cf_bounds
+                wrapped_model_func_np,
+                t_act,
+                q_act,
+                p0=ig_arr,
+                bounds=(lo_vec, hi_vec),
+                maxfev=max(trials, 4000),
             )
-        except Exception:
+        except (RuntimeError, ValueError):
             curve_ok = False
-            lows = np.array([p[0] for p in b_pairs], dtype=float)
-            highs = np.array([p[1] for p in b_pairs], dtype=float)
-            popt = np.clip(np.asarray(initial_guess, float), lows, highs)
+            popt = np.clip(np.asarray(initial_guess, float), lo_vec, hi_vec)
 
         # If the warm-start curve_fit succeeded and produced Dei == Def, skip MCMC and return that fit.
         if curve_ok:
@@ -806,10 +866,7 @@ def perform_curve_fit(
             def_val = fit_map.get("Def", config["fixed"].get("Def"))
             if (dei_val is not None) and (def_val is not None):
                 if np.isclose(dei_val, def_val, rtol=1e-6, atol=1e-9):
-                    b_pairs = convert_bounds(bounds)
-                    lo = np.array([p[0] for p in b_pairs], dtype=float)
-                    hi = np.array([p[1] for p in b_pairs], dtype=float)
-                    popt_clipped = np.clip(np.asarray(popt, float), lo, hi)
+                    popt_clipped = np.clip(np.asarray(popt, float), lo_vec, hi_vec)
                     return popt_clipped, True, None
 
         # Reuse or build a cached model
@@ -817,8 +874,8 @@ def perform_curve_fit(
         mkey = _model_key(config["optimize"], include_deterministics, use_fixed_nu)
         if mkey not in _MODEL_CACHE:
             _MODEL_CACHE[mkey] = _build_pymc_model(
-                config["optimize"], 
-                include_deterministics, 
+                config["optimize"],
+                include_deterministics,
                 use_fixed_nu
             )
         model, handles = _MODEL_CACHE[mkey]
@@ -829,22 +886,28 @@ def perform_curve_fit(
         pri = config.get("priors", {})
         ig_map = dict(zip(config['optimize'], initial_guess))
 
+        def _mid(lo, hi):
+            return 0.5 * (float(lo) + float(hi))
+
         # b center: only adjust if b is being optimized; otherwise keep the fixed value
         if "b" in config["optimize"]:
             if "b" in param_bounds:
-                b_lo, b_hi = param_bounds["b"]; b_mid = 0.5 * (b_lo + b_hi)
+                b_lo, b_hi = param_bounds["b"]
+                b_mid = _mid(b_lo, b_hi)
             else:
                 b_mid = ig_map.get("b", 1.0)
             centers["b"] = float(pri.get("b_mu", ig_map.get("b", b_mid)))
 
         # Dei center: prefer YAML guess in initial_guess; else midpoint of Dei bounds
         if "Dei" not in centers and "Dei" in param_bounds:
-            d_lo, d_hi = param_bounds["Dei"]; d_mid = 0.5 * (d_lo + d_hi)
+            d_lo, d_hi = param_bounds["Dei"]
+            d_mid = _mid(d_lo, d_hi)
             centers["Dei"] = float(ig_map.get("Dei", d_mid))
 
         # Def center is already set if fixed. If Def were optimized, fall back to its bounds midpoint.
         if "Def" not in centers and "Def" in param_bounds:
-            f_lo, f_hi = param_bounds["Def"]; centers["Def"] = 0.5 * (f_lo + f_hi)
+            f_lo, f_hi = param_bounds["Def"]
+            centers["Def"] = _mid(f_lo, f_hi)
 
         # Qi fallback remains data-driven
         centers.setdefault("Qi", max(np.nanmax(q_act), 1e-3))
@@ -866,7 +929,7 @@ def perform_curve_fit(
                 pm.set_data({f"center_{name}": float(centers[name])})
                 if name in kappa_map:
                     pm.set_data({f"kappa_{name}": float(kappa_map[name])})
-            for name in set(["Qi","Dei","Def","b"]) - set(config["optimize"]):
+            for name in [n for n in ["Qi", "Dei", "Def", "b"] if n not in config["optimize"]]:
                 pm.set_data({f"fixed_{name}": float(centers[name])})
 
             if use_fixed_nu:
@@ -911,7 +974,7 @@ def perform_curve_fit(
                 if use_jax:
                     trace = pm.sampling_jax.sample_blackjax_nuts(
                         draws=min(trials, 600),
-                        tune=max(trials//4, 200),
+                        tune=max(trials // 4, 200),
                         chains=2,
                         chain_method="vectorized",
                         target_accept=0.9,
@@ -922,7 +985,7 @@ def perform_curve_fit(
                 else:
                     trace = pm.sample(
                         draws=min(trials, 600),
-                        tune=max(trials//4, 150),
+                        tune=max(trials // 4, 150),
                         chains=1,
                         cores=1,
                         target_accept=0.9,
@@ -959,16 +1022,16 @@ def perform_curve_fit(
         return optimized_params, True, trace_to_return
 
     elif method == 'differential_evolution':
-        bounds = convert_bounds(bounds)
-        bounds_de = [(bound[0], bound[1]) for bound in bounds]
+        bounds_de = [(lo, hi) for lo, hi in b_pairs_norm]
+
         def de_model_func(params):
             model_values = model_func(t_act, *params, method='differential_evolution')
             return np.sum((q_act - model_values) ** 2)  # Sum of squared errors
 
         result = differential_evolution(
-            de_model_func, 
-            bounds_de, 
-            maxiter=trials, 
+            de_model_func,
+            bounds_de,
+            maxiter=trials,
             updating='deferred'
         )
         x = np.asarray(result.x, float)
@@ -982,79 +1045,101 @@ def perform_curve_fit(
             try:
                 opt_names = config["optimize"]
                 fixed = config["fixed"]
-                b_pairs = convert_bounds(bounds)
-                lo = np.array([p[0] for p in b_pairs], dtype=float)
-                hi = np.array([p[1] for p in b_pairs], dtype=float)
+                lo = lo_vec
+                hi = hi_vec
                 tmp = dict(zip(opt_names, initial_guess))
-                Qi_guess = tmp.get("Qi",  fixed.get("Qi"))
+                Qi_guess = tmp.get("Qi", fixed.get("Qi"))
                 Dei_guess = tmp.get("Dei", fixed.get("Dei"))
-                b_guess = tmp.get("b",   fixed.get("b"))
+                b_guess = tmp.get("b", fixed.get("b"))
                 Def_val = tmp.get("Def", fixed.get("Def"))
-                if "Dei" in opt_names:
-                    i = opt_names.index("Dei"); Dei_low, Dei_high = lo[i], hi[i]
+
+                # Fast index map for optimized params
+                idx = {n: i for i, n in enumerate(opt_names)}
+
+                # Dei bounds for coarse grid (or ±20% around guess if not optimized)
+                if "Dei" in idx:
+                    i = idx["Dei"]
+                    Dei_low, Dei_high = lo[i], hi[i]
                 else:
-                    Dei_low, Dei_high = Dei_guess*0.8, Dei_guess*1.2
-                if "b" in opt_names:
-                    i = opt_names.index("b"); b_low, b_high = lo[i], hi[i]
+                    Dei_low = Dei_guess * 0.8
+                    Dei_high = Dei_guess * 1.2
+
+                # b bounds for coarse grid (or around guess if not optimized)
+                if "b" in idx:
+                    i = idx["b"]
+                    b_low, b_high = lo[i], hi[i]
                 else:
-                    b_low, b_high = max(0.3, b_guess*0.8), min(2.0, b_guess*1.2)
-                if all(v is not None for v in [Qi_guess, Dei_guess, b_guess, Def_val]):
+                    b_low = max(0.3, b_guess * 0.8)
+                    b_high = min(2.0, b_guess * 1.2)
+
+                if all(v is not None for v in (Qi_guess, Dei_guess, b_guess, Def_val)):
                     g0 = _coarse_grid_best(
-                        t_act, 
-                        q_act, 
-                        Qi_guess, 
-                        Dei_low, 
-                        Dei_guess, 
-                        Dei_high, 
-                        b_low, 
-                        b_guess, 
-                        b_high, 
-                        Def_val
+                        t_act,
+                        q_act,
+                        Qi_guess,
+                        Dei_low,
+                        Dei_guess,
+                        Dei_high,
+                        b_low,
+                        b_guess,
+                        b_high,
+                        Def_val,
                     )
-                    ig = []
+
+                    # Map coarse-grid outputs back to opt_names order
+                    val_map = {"Qi": g0[0], "Dei": g0[1], "b": g0[2], "Def": Def_val}
+                    ig_new = []
+                    ok_seed = True
                     for name in opt_names:
-                        if name == "Qi":  ig.append(g0[0])
-                        elif name == "Dei": ig.append(g0[1])
-                        elif name == "b": ig.append(g0[2])
-                        elif name == "Def": ig.append(Def_val)
-                    initial_guess = ig
+                        v = val_map.get(name, None)
+                        if v is None:
+                            ok_seed = False
+                            break
+                        ig_new.append(float(v))
+                    if ok_seed:
+                        initial_guess = ig_new
+
             except Exception:
+                # Swallow coarse-grid issues; curve_fit/de handles warm-start fallback.
                 pass
 
-            b_pairs = convert_bounds(bounds)
-            cf_bounds = (
-                np.array([p[0] for p in b_pairs], dtype=float),
-                np.array([p[1] for p in b_pairs], dtype=float),
-            )
+            # sanitize IG strictly inside bounds
+            ig_arr = np.asarray(initial_guess, float)
+            if ig_arr.size != len(opt_names):
+                raise ValueError(f"initial_guess len {ig_arr.size} != {len(opt_names)}")
+            eps = 1e-9 * np.maximum(1.0, np.abs(hi - lo))
+            ig_arr = np.clip(ig_arr, lo + eps, hi - eps)
+
+            def wrapped_model_func_safe(t, *params):
+                y = wrapped_model_func(t, *params)
+                return np.nan_to_num(y, nan=1e12, posinf=1e12, neginf=0.0)
             popt, _ = curve_fit(
-                wrapped_model_func, 
-                t_act, 
-                q_act, 
-                p0=initial_guess, 
-                bounds=cf_bounds, 
-                maxfev=max(trials, 2000)
+                wrapped_model_func_safe,
+                t_act,
+                q_act,
+                p0=ig_arr,
+                bounds=(lo, hi),
+                maxfev=max(trials, 4000)
             )
-            lo = cf_bounds[0]
-            hi = cf_bounds[1]
             popt = np.clip(np.asarray(popt, float), lo, hi)
             return popt, True
-        except RuntimeError as e:
+        except (RuntimeError, ValueError) as e:
             # Differential evolution fallback for tough landscapes
             try:
-                b_pairs = convert_bounds(bounds)
-                de_bounds = [(p[0], p[1]) for p in b_pairs]
+                de_bounds = [(p[0], p[1]) for p in b_pairs_norm]
+
                 def sse_obj(params):
                     return float(np.sum((q_act - wrapped_model_func(t_act, *params))**2))
                 result = differential_evolution(
                     sse_obj,
                     de_bounds,
-                    maxiter=max(trials//100, 100),
+                    maxiter=max(trials // 100, 100),
                     tol=1e-4,
                     updating='deferred'
                 )
                 x = np.asarray(result.x, float)
-                lo = np.array([p[0] for p in b_pairs], dtype=float)
-                hi = np.array([p[1] for p in b_pairs], dtype=float)
+                lo = np.array([p[0] for p in de_bounds], dtype=float)
+                hi = np.array([p[1] for p in de_bounds], dtype=float)
                 return np.clip(x, lo, hi), True
             except Exception:
                 print(f"Curve fitting failed: {e}")
