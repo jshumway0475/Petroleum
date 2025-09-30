@@ -6,11 +6,13 @@ from shapely.geometry import Point, LineString, MultiLineString, GeometryCollect
 import pyproj
 import math
 
+
 # Helper function to convert Shapely geometries to WKT strings
 def geom_to_wkt(value):
     if isinstance(value, (Point, LineString, MultiLineString, Polygon)):
         return wkt.dumps(value)
     return value
+
 
 # Helper function to convert WKT strings to Shapely geometries
 def wkt_to_geom(value):
@@ -20,6 +22,7 @@ def wkt_to_geom(value):
         except (ValueError, TypeError):
             return value
     return value
+
 
 # Function used to determine if a geometry has at least two unique coordinates
 def has_at_least_two_unique_coords(geometry):
@@ -48,7 +51,7 @@ def has_at_least_two_unique_coords(geometry):
     elif isinstance(geometry, MultiLineString):
         if geometry.is_empty:
             return False
-            
+
         # Collect all coordinates from all LineStrings within the MultiLineString
         all_coords = [coord for line in geometry.geoms for coord in line.coords]
         if len(set(all_coords)) < 2:
@@ -58,6 +61,7 @@ def has_at_least_two_unique_coords(geometry):
         return False  # If geometry is not Point, LineString, or MultiLineString, return False
 
     return True  # If all checks passed, return True
+
 
 # Function to add points at a minimum frequency of 100 ft along the lateral line
 def interpolate_points(geometry, distance_ft=100):
@@ -70,7 +74,7 @@ def interpolate_points(geometry, distance_ft=100):
     '''
     # Convert feet to the same unit as the line length
     distance = distance_ft / 3.281
-    
+
     # Function to handle interpolation for individual LineString
     def interpolate_line_string(line):
         # Check if line only consists of 2 points and if so, leave as is
@@ -80,7 +84,7 @@ def interpolate_points(geometry, distance_ft=100):
             num_points = max(2, int(line.length / distance) + 1)  # Ensure at least 2 points
             points = [line.interpolate(dist * distance) for dist in range(num_points)]
             return LineString(points)
-    
+
     # Check if geometry is a MultiLineString
     if isinstance(geometry, MultiLineString):
         # Interpolate each LineString inside the MultiLineString using geoms attribute
@@ -91,6 +95,7 @@ def interpolate_points(geometry, distance_ft=100):
     else:
         return geometry  # For other types like Point, simply return as is
 
+
 # Function to determine if a polygon is a rectangle
 def rectangle_conformity(geometry):
     '''
@@ -98,13 +103,15 @@ def rectangle_conformity(geometry):
     - geometry: Shapely Polygon geometry object
     Returns:
     - rectangle_conformity: Ratio of intersection area to minimum rotated rectangle area
-    - rectangle_conformity will be close to 1 for geometries that closely conform to a rectangle and lower for those that don't
+    - rectangle_conformity will be close to 1 for geometries that closely conform to a
+      rectangle and lower for those that don't
     '''
     rect = geometry.minimum_rotated_rectangle
     intersect = geometry.intersection(rect)
     if rect.area == 0:  # Avoid division by zero
         return 0
     return intersect.area / rect.area
+
 
 # Function extracts the endpoints of a LineString or MultiLineString
 def get_endpoints(geom):
@@ -126,6 +133,7 @@ def get_endpoints(geom):
         return longest.coords[0], longest.coords[-1]
     else:
         raise ValueError('Unhandled geometry type: ' + repr(geom.geom_type))
+
 
 # Convert MultiLineString or GeometryCollection to LineString
 def get_longest_linestring(geometry):
@@ -156,6 +164,7 @@ def get_longest_linestring(geometry):
             raise ValueError("No LineString or MultiLineString found in GeometryCollection")
     else:
         raise ValueError("Unhandled geometry type")
+
 
 # Function to calculate azimuth relative to North (0 degrees)
 def calculate_azimuth(line, reverse=False):
@@ -193,15 +202,16 @@ def calculate_azimuth(line, reverse=False):
 
     return azimuth
 
+
 # Function to determine the relative direction of an adjacent line with respect to a reference line
 def determine_relative_direction(theta_ref, theta_adj):
     """
     Determine the relative direction of an adjacent line with respect to a reference line.
-    
+
     Parameters:
     theta_ref (float): Azimuth of the reference line, ranging from 0° to 180°.
     theta_adj (float): Azimuth of the line between the centroids, ranging from 0° to 360°.
-    
+
     Returns:
     str: Relative direction of the adjacent line ("RIGHT", "LEFT", or "IN-LINE").
 
@@ -209,7 +219,7 @@ def determine_relative_direction(theta_ref, theta_adj):
     This means that a well to the east of a north-south facing line will always be considered "RIGHT" and a well to the west
     of a north-south facing line will always be considered "LEFT". Similarly, a well to the north of an east-west facing line
     will always be considered "RIGHT" and a well to the south of an east-west facing line will always be considered "LEFT".
-    """
+    """  # noqa
     # Correct theta_ref to use a -90° to 90° range
     theta_ref = theta_ref - 180 if theta_ref > 90 else theta_ref
 
@@ -217,7 +227,6 @@ def determine_relative_direction(theta_ref, theta_adj):
     delta_theta = theta_adj - theta_ref
     delta_theta = delta_theta - 360 if delta_theta > 180 else (delta_theta + 360 if delta_theta < -180 else delta_theta)
 
-    
     # Special checks for edge cases and determine the relative position
     if delta_theta == 0 or delta_theta == 180 or delta_theta == -180:
         return "IN-LINE"
@@ -225,13 +234,26 @@ def determine_relative_direction(theta_ref, theta_adj):
         return "RIGHT"
     else:
         return "LEFT"
-    
+
+
 # Function to optimize the buffer around the surface location needed to clip deviation from surface to bottomhole
-def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buffer=500.0, max_buffer=1500.0, max_iter=20, buffer_distance_ft=5280, rec_conformity_threshold=0.5):
+def optimize_buffer(
+    df,
+    geo_col,
+    sfc_lat_col,
+    sfc_long_col,
+    epsg=4326,
+    start_buffer=500.0,
+    max_buffer=1500.0,
+    max_iter=20,
+    buffer_distance_ft=5280,
+    rec_conformity_threshold=0.5
+    ):
     '''
     Args:
     - df (DataFrame): DataFrame containing the following columns:
-        - geometry (LineString or MultiLineString or WKT string): The geometry column representing the well survey in xy coordinates
+        - geometry (LineString or MultiLineString or WKT string): The geometry column representing
+          the well survey in xy coordinates
         - surface latitude (float): The latitude of the surface location
         - surface longitude (float): The longitude of the surface location
     - geo_col (str): The name of the geometry column
@@ -241,7 +263,8 @@ def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buf
     - max_buffer (float): The maximum radial buffer distance around the sfc_loc in feet
     - max_iter (int): The maximum number of iterations on the radial buffer size to perform
     - buffer_distance_ft (float): The buffer distance around the LateralLine in feet
-    - rec_conformity_threshold (float): The minimum rectangle conformity threshold to for optimization of the surface location buffer
+    - rec_conformity_threshold (float): The minimum rectangle conformity threshold to for optimization
+      of the surface location buffer
     Returns:
     - df (DataFrame): DataFrame with the following columns:
         - geometry (LineString or MultiLineString): The geometry column representing the well survey in xy coordinates
@@ -254,7 +277,7 @@ def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buf
         - lateral_geometry_buffer (Polygon): The buffer around the clipped lateral geometry
     Example Use:
     - new_df = optimize_buffer(df, geo_col='Geometry', sfc_lat_col='Latitude', sfc_long_col='Longitude', buffer_distance_ft=5280)
-    '''
+    '''  # noqa
     # Check if geometry is a string and try to convert it using wkt.loads
     df[geo_col] = df[geo_col].apply(wkt.loads) if isinstance(df[geo_col].iloc[0], str) else df[geo_col]
 
@@ -263,7 +286,7 @@ def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buf
 
     # Create geometry objects from lat/long coordinates
     df['sfc_loc'] = df.apply(lambda x: Point(x[sfc_long_col], x[sfc_lat_col]), axis=1)
-    
+
     # Reproject geometries to EPSG:6579
     gdf1 = gpd.GeoDataFrame(df, geometry=geo_col, crs=f"EPSG:{epsg}")
     gdf2 = gpd.GeoDataFrame(df, geometry='sfc_loc', crs=f"EPSG:{epsg}")
@@ -286,12 +309,12 @@ def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buf
 
     # Calculate the step
     step = (max_buffer - start_buffer) / max_iter
-    
+
     # Apply cleaning, filtering, and interpolation before the main logic
     mask = df[geo_col].apply(has_at_least_two_unique_coords)
     df = df[mask]
     df.loc[:, geo_col] = df[geo_col].apply(interpolate_points)
-    
+
     optimal_buffers = []
     optimal_conformities = []
     clipped_lateral_geometries = []
@@ -337,7 +360,7 @@ def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buf
         optimal_conformities.append(max_conformity)
         clipped_lateral_geometries.append(lateral_geometry)
         lat_geo_buffers.append(end_line_buffer)
-        
+
     df['optimal_buffer'] = optimal_buffers
     df['optimal_conformity'] = optimal_conformities
     df['clipped_lateral_geometry'] = clipped_lateral_geometries
@@ -345,7 +368,8 @@ def optimize_buffer(df, geo_col, sfc_lat_col, sfc_long_col, epsg=4326, start_buf
 
     return df
 
-# Function to prepare the DataFrame for distance calculations. For use after the optimize_buffer function and before the calculate_distance function.
+
+# Function to prepare the DataFrame for distance calculations. For use after the optimize_buffer function and before the calculate_distance function.  # noqa
 def prep_df_distance(df, well_id_col):
     '''
     This function is for use after the optimize_buffer function. It takes the output of the optimize_buffer function and
@@ -385,13 +409,20 @@ def prep_df_distance(df, well_id_col):
     intersecting_wells = gpd.sjoin(gdf_lines, gdf_buffers, predicate='intersects', how='inner')
 
     # Remove wells that intersect with themselves
-    intersecting_wells = intersecting_wells[intersecting_wells[f'{well_id_col}_left'] != intersecting_wells[f'{well_id_col}_right']]
+    intersecting_wells = (
+        intersecting_wells[intersecting_wells[f'{well_id_col}_left'] != intersecting_wells[f'{well_id_col}_right']]
+    )
 
     # Aggregate intersecting well IDs
     intersecting_well_ids = intersecting_wells.groupby('index_left')[f'{well_id_col}_right'].apply(list)
 
     # Merge intersecting well IDs into the original DataFrame
-    new_df = df.merge(intersecting_well_ids.rename('Intersecting_Well_IDs'), how='left', left_index=True, right_index=True)
+    new_df = df.merge(
+        intersecting_well_ids.rename('Intersecting_Well_IDs'),
+        how='left',
+        left_index=True,
+        right_index=True
+    )
 
     # Explode Intersecting_Well_IDs for one-to-many mapping
     exploded_df = new_df.explode('Intersecting_Well_IDs').dropna(subset=['Intersecting_Well_IDs'])
@@ -400,8 +431,8 @@ def prep_df_distance(df, well_id_col):
     merged_df = pd.merge(
         exploded_df[[well_id_col, 'Intersecting_Well_IDs', 'clipped_lateral_geometry', 'lateral_geometry_buffer']],
         new_df[[well_id_col, 'clipped_lateral_geometry', 'lateral_geometry_buffer']],
-        left_on='Intersecting_Well_IDs', 
-        right_on=well_id_col, 
+        left_on='Intersecting_Well_IDs',
+        right_on=well_id_col,
         suffixes=('', '_from_neighbor')
     )
 
@@ -417,8 +448,9 @@ def prep_df_distance(df, well_id_col):
 
     # Rename well_id_col to Well_ID
     result_df.rename(columns={well_id_col: 'WellID'}, inplace=True)
-    
+
     return result_df
+
 
 # Function to calculate distances between two lines
 def calculate_distance(row, min_distance_ft=100.0):
@@ -436,7 +468,7 @@ def calculate_distance(row, min_distance_ft=100.0):
     - relative_position: The relative position of the neighboring lateral with respect to the reference lateral
     Example Use:
     - clean_df[['MinDistance', 'MedianDistance', 'MaxDistance', 'AvgDistance', 'neighbor_IntersectionFraction', 'RelativePosition']] = clean_df.apply(calculate_distance, axis=1, result_type='expand')
-    '''    
+    '''  # noqa
     # Identify the well's lateral and the adjacent lateral
     reference_geometry = wkt_to_geom(row['clipped_lateral_geometry'])
     neighbor_geometry = wkt_to_geom(row['clipped_neighbor_lateral_geometry'])
@@ -470,8 +502,10 @@ def calculate_distance(row, min_distance_ft=100.0):
         total_neighbor_length_ft = neighbor_geometry.length * 3.281  # Convert from meters to feet
 
         # Calculate the percentage of neighbor_geometry that intersects with the buffer of reference_geometry
-        intersection_fraction = (neighbor_intersection_length_ft / total_neighbor_length_ft) if total_neighbor_length_ft != 0 else 0
-        
+        intersection_fraction = (
+            (neighbor_intersection_length_ft / total_neighbor_length_ft) if total_neighbor_length_ft != 0 else 0
+        )
+
     if reference_intersection.geom_type == 'Point':
         distances = [reference_geometry.distance(reference_intersection) * 3.281]
     else:
@@ -489,12 +523,14 @@ def calculate_distance(row, min_distance_ft=100.0):
 
         avg_distance = np.mean(distances)
         std_dev = np.std(distances)
-        
-        filtered_distances = [d for d in distances if avg_distance - std_dev <= d <= avg_distance + std_dev and d >= min_distance_ft]
-        
+
+        filtered_distances = (
+            [d for d in distances if avg_distance - std_dev <= d <= avg_distance + std_dev and d >= min_distance_ft]
+        )
+
         if not filtered_distances:
             return None, None, None, None, None, None
-        
+
         # Normalize the azimuth of reference_geometry to a 180-degree system
         azimuth_lateral = calculate_azimuth(reference_geometry, reverse=True) % 180
 
@@ -510,8 +546,15 @@ def calculate_distance(row, min_distance_ft=100.0):
 
         # Calculate the relative azimuth between reference_geometry and the centroid line
         relative_position = determine_relative_direction(azimuth_lateral, azimuth_centroid_line)
-        
-        return min(filtered_distances), np.median(filtered_distances), max(filtered_distances), np.mean(filtered_distances), intersection_fraction, relative_position
+
+        return
+        min(filtered_distances),
+        np.median(filtered_distances),
+        max(filtered_distances),
+        np.mean(filtered_distances),
+        intersection_fraction,
+        relative_position
+
 
 # Function to determine parent-child relationship
 def parent_child(day_diff, min_days_threshold):
@@ -541,11 +584,12 @@ def parent_child(day_diff, min_days_threshold):
     - spacing_df['Relationship'] = spacing_df['DayDiff'].apply(lambda x: parent_child(x, co_completed_threshold))
       In this example, spacing_df is a DataFrame where 'DayDiff' represents the day difference to the nearest 
       neighboring well's first production date. 'co_completed_threshold' is a predefined threshold value.
-    '''
-    
+    '''  # noqa
+
     if abs(day_diff.days) <= min_days_threshold:
         return 'Co'
     return 'P' if day_diff.days < 0 else 'C'
+
 
 # Function to find the closest distance and resulting relationship between wells over time
 def get_min_distance_rows(df, id_col, position_col, date_col, distance_col):
@@ -569,11 +613,22 @@ def get_min_distance_rows(df, id_col, position_col, date_col, distance_col):
     df.sort_values(by=[id_col, position_col, date_col, min_distance_col], inplace=True)
     df.dropna(subset=[distance_col], inplace=True)
     df.drop_duplicates(subset=[id_col, position_col, date_col], keep='first', inplace=True)
-    
+
     return df.drop(columns=min_distance_col)
 
-# Function to process data from well distance calculations to determine relationships and closest distances between wells
-def parent_child_processing(spacing_df, well_df, co_completed_threshold, id_col, position_col, date_col, distance_col, neighbor_date_col, scenario_name):
+
+# Function to process data from well distance calculations to determine relationships and closest distances between wells  # noqa
+def parent_child_processing(
+    spacing_df,
+    well_df,
+    co_completed_threshold,
+    id_col,
+    position_col,
+    date_col,
+    distance_col,
+    neighbor_date_col,
+    scenario_name
+    ):
     '''
     Process well data to determine relationships and distances between wells.
     Args:
@@ -603,20 +658,28 @@ def parent_child_processing(spacing_df, well_df, co_completed_threshold, id_col,
         'FirstProdDate': ['2020-01-01', '2020-02-01', '2020-03-01', '2020-04-01']
     })
     - closest_wells = process_well_data(spacing_df, well_df, co_completed_threshold, 'WellID', 'RelativePosition', 'FirstProdDate', 'AvgDistance', 'neighbor_FirstProdDate', 'ENVERUS')
-    '''
+    '''  # noqa
     # Apply the parent_child function to the spacing_df dataframe
-    spacing_df['Relationship'] = spacing_df.apply(lambda x: parent_child(x[date_col] - x[neighbor_date_col], co_completed_threshold), axis=1)
+    spacing_df['Relationship'] = spacing_df.apply(
+        lambda x: parent_child(x[date_col] - x[neighbor_date_col],
+        co_completed_threshold),
+        axis=1
+    )
 
     # Clean up dataframe to find the closest distance and resulting relationship between wells over time
     spacing_df['Date'] = np.maximum(spacing_df[date_col], spacing_df[neighbor_date_col])
     spacing_df = get_min_distance_rows(spacing_df, id_col, position_col, 'Date', distance_col)
 
     # Pivot closest wells to see distance and relationship on each side of the reference well
-    pivoted_spacing_df = spacing_df.pivot(index=[id_col, 'Date', date_col], columns=position_col, values=[distance_col, 'Relationship']).reset_index()
+    pivoted_spacing_df = spacing_df.pivot(
+        index=[id_col, 'Date', date_col],
+        columns=position_col,
+        values=[distance_col, 'Relationship']
+    ).reset_index()
 
     # Flatten the MultiIndex columns and rename for clarity
     pivoted_spacing_df.columns = ['_'.join(col).rstrip('_') for col in pivoted_spacing_df.columns.values]
-    pivoted_spacing_df.rename(columns={f'{distance_col}_LEFT': 'ClosestHzDistance_Left', 
+    pivoted_spacing_df.rename(columns={f'{distance_col}_LEFT': 'ClosestHzDistance_Left',
                                        f'{distance_col}_RIGHT': 'ClosestHzDistance_Right',
                                        'Relationship_LEFT': 'LEFT_Relationship',
                                        'Relationship_RIGHT': 'RIGHT_Relationship'}, inplace=True)
@@ -627,18 +690,32 @@ def parent_child_processing(spacing_df, well_df, co_completed_threshold, id_col,
 
     pivoted_spacing_df['LEFT_Relationship'] = pivoted_spacing_df['LEFT_Relationship'].fillna('')
     pivoted_spacing_df['RIGHT_Relationship'] = pivoted_spacing_df['RIGHT_Relationship'].fillna('')
-    pivoted_spacing_df['Relationship'] = pivoted_spacing_df['LEFT_Relationship'] + '|' + pivoted_spacing_df['RIGHT_Relationship']
+    pivoted_spacing_df['Relationship'] = (
+        pivoted_spacing_df['LEFT_Relationship'] + '|' + pivoted_spacing_df['RIGHT_Relationship']
+    )
 
-    pivoted_spacing_df = pivoted_spacing_df[pivoted_spacing_df['Date'] >= pivoted_spacing_df[date_col]].reset_index(drop=True)
-    pivoted_spacing_df['ClosestHzDistance'] = pivoted_spacing_df[['ClosestHzDistance_Left', 'ClosestHzDistance_Right']].min(axis=1)
+    pivoted_spacing_df = (
+        pivoted_spacing_df[pivoted_spacing_df['Date'] >= pivoted_spacing_df[date_col]].reset_index(drop=True)
+    )
+    pivoted_spacing_df['ClosestHzDistance'] = (
+        pivoted_spacing_df[['ClosestHzDistance_Left', 'ClosestHzDistance_Right']].min(axis=1)
+    )
     pivoted_spacing_df.drop(columns=[date_col, 'LEFT_Relationship', 'RIGHT_Relationship'], inplace=True)
 
-    closest_wells = well_df.merge(pivoted_spacing_df, left_on=[id_col, date_col], right_on=[id_col, 'Date'], how='outer', indicator=True).drop_duplicates()
+    closest_wells = well_df.merge(
+        pivoted_spacing_df,
+        left_on=[id_col, date_col],
+        right_on=[id_col, 'Date'],
+        how='outer',
+        indicator=True
+    ).drop_duplicates()
     closest_wells['Date'] = closest_wells['Date'].fillna(closest_wells[date_col])
     closest_wells = closest_wells.drop(columns=[date_col, '_merge'])
     closest_wells['Relationship'] = closest_wells['Relationship'].fillna('S')
     closest_wells.sort_values(by=[id_col, 'Date'], inplace=True)
-    closest_wells = closest_wells[[id_col, 'Date', 'Relationship', 'ClosestHzDistance', 'ClosestHzDistance_Left', 'ClosestHzDistance_Right']].copy()
+    closest_wells = closest_wells[
+        [id_col, 'Date', 'Relationship', 'ClosestHzDistance', 'ClosestHzDistance_Left', 'ClosestHzDistance_Right']
+    ].copy()
 
     closest_wells['ScenarioName'] = scenario_name
     closest_wells['UpdateDate'] = pd.Timestamp.now()
@@ -648,6 +725,7 @@ def parent_child_processing(spacing_df, well_df, co_completed_threshold, id_col,
         closest_wells[col] = closest_wells[col].astype(float)
 
     return closest_wells
+
 
 # Function to calculate distances between verical wells
 def calc_vertical_distance(gdf, buffer_radius, id_col, geo_col, date_col, source_epsg=4326):
@@ -683,10 +761,17 @@ def calc_vertical_distance(gdf, buffer_radius, id_col, geo_col, date_col, source
 
     # Explode the DataFrame
     exploded_df = gdf.explode(f'neighboring_{id_col}')
-    exploded_df = exploded_df.merge(gdf[[id_col, geo_col, date_col]], left_on=f'neighboring_{id_col}', right_on=id_col, suffixes=('', '_neighboring'))
+    exploded_df = exploded_df.merge(
+        gdf[[id_col, geo_col, date_col]],
+        left_on=f'neighboring_{id_col}',
+        right_on=id_col,
+        suffixes=('', '_neighboring')
+    )
     exploded_df.drop(columns=[f'{id_col}_neighboring'], inplace=True)
 
     # Calculate distances
-    exploded_df['distance_FT'] = exploded_df[geo_col].centroid.distance(exploded_df[f'{geo_col}_neighboring'].centroid) * 3.281
+    exploded_df['distance_FT'] = (
+        exploded_df[geo_col].centroid.distance(exploded_df[f'{geo_col}_neighboring'].centroid) * 3.281
+    )
 
     return exploded_df

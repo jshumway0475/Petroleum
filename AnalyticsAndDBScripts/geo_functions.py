@@ -10,6 +10,7 @@ from shapely import vectorized
 import pyproj
 import matplotlib.pyplot as plt
 
+
 # Helper functions for geospatial data processing
 def _ensure_geometry(series):
     """
@@ -36,7 +37,10 @@ def _ensure_geometry(series):
         return series.apply(wkt.loads)
     return series
 
+
 _HAS_VECT = hasattr(vectorized, "covers")
+
+
 def _covers_poly(poly, X, Y):
     """
     Vectorized polygon cover test.
@@ -61,9 +65,11 @@ def _covers_poly(poly, X, Y):
         return vectorized.covers(poly, X, Y)
     mask = np.zeros_like(X, dtype=bool)
     for i in range(0, X.size, 10000):
-        xs = X[i:i+10000]; ys = Y[i:i+10000]
-        mask[i:i+10000] = np.array([poly.contains(Point(x,y)) or poly.touches(Point(x,y)) for x,y in zip(xs,ys)])
+        xs = X[i:i + 10000]
+        ys = Y[i:i + 10000]
+        mask[i:i + 10000] = np.array([poly.contains(Point(x, y)) or poly.touches(Point(x, y)) for x, y in zip(xs, ys)])
     return mask
+
 
 def _normalize_grid_units(arr, grid_epsg, utm_units='m'):
     """
@@ -98,6 +104,7 @@ def _normalize_grid_units(arr, grid_epsg, utm_units='m'):
         arr[:, :2] *= 0.3048006096012192
     return arr
 
+
 def _project_geoms(df, geo_col, src_epsg, dst_epsg):
     """
     Project shapely geometries from one CRS to another (once).
@@ -121,7 +128,8 @@ def _project_geoms(df, geo_col, src_epsg, dst_epsg):
     tr = pyproj.Transformer.from_crs(src_epsg, dst_epsg, always_xy=True).transform
     return df[geo_col].apply(lambda g: transform(tr, g))
 
-def _sample_points_for_geom(geom, line_points=50, poly_grid_target=200):
+
+def _sample_points_for_geom(geom, line_points=50, poly_grid_target=200):  # noqa
     """
     Generate sample points for a geometry in its native CRS.
 
@@ -181,7 +189,8 @@ def _sample_points_for_geom(geom, line_points=50, poly_grid_target=200):
             xs = np.linspace(minx, maxx, nx, dtype=float)
             ys = np.linspace(miny, maxy, ny, dtype=float)
             XX, YY = np.meshgrid(xs, ys)
-            X = XX.ravel(); Y = YY.ravel()
+            X = XX.ravel()
+            Y = YY.ravel()
             mask = _covers_poly(poly, X, Y)
             if mask.any():
                 out.append(np.column_stack([X[mask], Y[mask]]))
@@ -195,7 +204,8 @@ def _sample_points_for_geom(geom, line_points=50, poly_grid_target=200):
     c = geom.centroid
     return np.array([[c.x, c.y]])
 
-def build_interpolator(arr, method='linear', assume_structured=False):
+
+def build_interpolator(arr, method='linear', assume_structured=False):  # noqa
     """
     Build a reusable interpolator for scattered or structured 2D data.
 
@@ -227,29 +237,34 @@ def build_interpolator(arr, method='linear', assume_structured=False):
     arr = np.asarray(arr, float)
     if arr.ndim != 2 or arr.shape[1] != 3:
         raise ValueError("arr must be (N,3) with columns [x,y,z]")
-    x, y, z = arr[:,0], arr[:,1], arr[:,2]
+    x, y, z = arr[:, 0], arr[:, 1], arr[:, 2]
 
     if assume_structured:
-        ux = np.unique(x); uy = np.unique(y)
-        N = arr.shape[0]; nx, ny = ux.size, uy.size
+        ux = np.unique(x)
+        uy = np.unique(y)
+        N = arr.shape[0]
+        nx, ny = ux.size, uy.size
         if nx * ny == N and np.unique(arr[:, :2], axis=0).shape[0] == N:
-            ux = np.sort(ux); uy = np.sort(uy)
+            ux = np.sort(ux)
+            uy = np.sort(uy)
             idx = np.lexsort((x, y))
             xs, ys, zs = x[idx], y[idx], z[idx]
             try:
-                X = xs.reshape(ny, nx); Y = ys.reshape(ny, nx)
+                X = xs.reshape(ny, nx)
+                Y = ys.reshape(ny, nx)
                 if np.allclose(X[0], ux, rtol=0, atol=1e-9) and np.allclose(Y[:, 0], uy, rtol=0, atol=1e-9):
                     Zg = zs.reshape(ny, nx)
                     rgi = RegularGridInterpolator(
                         (uy, ux), Zg, method='linear',
                         bounds_error=False, fill_value=np.nan
                     )
-                    return (lambda XY: rgi(np.column_stack([XY[:,1], XY[:,0]]))), None
+                    return (lambda XY: rgi(np.column_stack([XY[:, 1], XY[:, 0]]))), None
             except ValueError:
                 pass
 
     if method == 'nearest':
         tree = cKDTree(np.column_stack([x, y]))
+
         def f(XY):
             XY = np.asarray(XY, float)
             if XY.ndim != 2 or XY.shape[1] != 2:
@@ -270,6 +285,7 @@ def build_interpolator(arr, method='linear', assume_structured=False):
         return (lambda XY: interp(np.asarray(XY, float))), None
 
     raise ValueError("method must be 'nearest', 'linear', or 'cubic'")
+
 
 # Useful geologic functions
 def calculate_tvd(df, target_md):
@@ -305,6 +321,7 @@ def calculate_tvd(df, target_md):
     md_lower, tvd_lower = lower_point['MD_FT'], lower_point['TVD_FT']
     md_upper, tvd_upper = upper_point['MD_FT'], upper_point['TVD_FT']
     return tvd_lower + ((tvd_upper - tvd_lower) / (md_upper - md_lower)) * (target_md - md_lower)
+
 
 # Function to interpolate values from a grid to a set of points
 def sample_xyz(
@@ -397,27 +414,28 @@ def sample_xyz(
     out = []
     start = 0
     for (idx, row), n in zip(df.iterrows(), per_counts):
-        vals = all_vals[start:start+n]; start += n
+        vals = all_vals[start:start + n]
+        start += n
         valid = np.isfinite(vals)
         if not np.any(valid):
-            agg = dict(
-                samples_total=int(n),
-                samples_valid=0,
-                sampled_z_mean=np.nan,
-                sampled_z_std=np.nan,
-                sampled_z_min=np.nan,
-                sampled_z_max=np.nan
-            )
+            agg = {
+                "samples_total": int(n),
+                "samples_valid": 0,
+                "sampled_z_mean": np.nan,
+                "sampled_z_std": np.nan,
+                "sampled_z_min": np.nan,
+                "sampled_z_max": np.nan,
+            }
         else:
             v = vals[valid]
-            agg = dict(
-                samples_total=int(n),
-                samples_valid=int(valid.sum()),
-                sampled_z_mean=float(np.mean(v)),
-                sampled_z_std=float(np.std(v)),
-                sampled_z_min=float(np.min(v)),
-                sampled_z_max=float(np.max(v))
-            )
+            agg = {
+                "samples_total": int(n),
+                "samples_valid": int(valid.sum()),
+                "sampled_z_mean": float(np.mean(v)),
+                "sampled_z_std": float(np.std(v)),
+                "sampled_z_min": float(np.min(v)),
+                "sampled_z_max": float(np.max(v)),
+            }
         c = row[geo_col].centroid
         epsg_out = pyproj.CRS.from_user_input(grid_epsg)
         epsg_out = epsg_out.to_epsg() or str(epsg_out)
@@ -432,6 +450,7 @@ def sample_xyz(
             **agg
         })
     return pd.DataFrame(out)
+
 
 # Mapping function using Matplotlib and scipy.interpolate.griddata
 def plot_heatmap_and_histogram(arr, file_name=None, grid_resolution=100, color_map='jet', z_min=None, z_max=None):
@@ -458,11 +477,11 @@ def plot_heatmap_and_histogram(arr, file_name=None, grid_resolution=100, color_m
     xi = np.linspace(min(x), max(x), grid_resolution)
     yi = np.linspace(min(y), max(y), grid_resolution)
     xi, yi = np.meshgrid(xi, yi)
-    
+
     # Interpolate z values onto grid
     zi = griddata((x, y), z, (xi, yi), method='linear')
     fig, axs = plt.subplots(2, 1, figsize=(10, 12))
-    
+
     # Plot heatmap
     contour = axs[0].contourf(xi, yi, zi, 100, cmap=color_map, vmin=z_min, vmax=z_max)
     fig.colorbar(contour, ax=axs[0], label='Z Value')
@@ -472,7 +491,7 @@ def plot_heatmap_and_histogram(arr, file_name=None, grid_resolution=100, color_m
     if file_name:
         title += f' for {file_name}'
     axs[0].set_title(title)
-    
+
     # Plot histogram
     axs[1].hist(z, bins=30, color="dodgerblue", edgecolor="k")
     title = 'Histogram of Z values'
@@ -484,6 +503,7 @@ def plot_heatmap_and_histogram(arr, file_name=None, grid_resolution=100, color_m
     axs[1].grid(True, which="both", ls="--")
     plt.tight_layout()
     plt.show()
+
 
 # Save heatmaps as an image file and extract max and min x-y coordinates values
 def save_heatmap_as_image(arr, image_file_name, grid_resolution=100, color_map='jet', z_min=None, z_max=None):
@@ -514,10 +534,10 @@ def save_heatmap_as_image(arr, image_file_name, grid_resolution=100, color_map='
     xi = np.linspace(min(x), max(x), grid_resolution)
     yi = np.linspace(min(y), max(y), grid_resolution)
     xi, yi = np.meshgrid(xi, yi)
-    
+
     # Interpolate z values onto grid
     zi = griddata((x, y), z, (xi, yi), method='linear')
-    
+
     plt.figure(figsize=(10, 8))
     plt.contourf(xi, yi, zi, 100, cmap=color_map, vmin=z_min, vmax=z_max)
     plt.axis('off')
