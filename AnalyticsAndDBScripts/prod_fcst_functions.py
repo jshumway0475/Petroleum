@@ -395,25 +395,31 @@ def bourdet_outliers(y, x, L, xlog, ylog, z_threshold=2, min_array_size=6):
         x: numpy.NDFloat
             An array of x values with outliers removed.
     '''
-    if len(y) < min_array_size:
+    if len(y) < int(min_array_size):
         return y, x
     else:
         # Calculate the bourdet derivative
-        forward_derivative = dca.bourdet(y, x, L, xlog, ylog)
-        reverse_derivative = dca.bourdet(y[::-1], x, L, xlog, ylog)[::-1]
+        forward_derivative = dca.bourdet(y, x, float(L), xlog, ylog)
+        reverse_derivative = dca.bourdet(y[::-1], x, float(L), xlog, ylog)[::-1]
 
         # Calculate the z-score of the bourdet derivatives
-        forward_zscore = (forward_derivative - np.nanmean(forward_derivative)) / np.nanstd(forward_derivative)
-        reverse_zscore = (reverse_derivative - np.nanmean(reverse_derivative)) / np.nanstd(reverse_derivative)
+        def _z(a):
+            mu = np.nanmean(a)
+            sd = np.nanstd(a)
+            if not np.isfinite(sd) or sd == 0.0:
+                return np.zeros_like(a, dtype=float)
+            return (a - mu) / sd
+        forward_zscore = _z(forward_derivative)
+        reverse_zscore = _z(reverse_derivative)
 
         # Identify the outliers
         outliers = (np.abs(forward_zscore) >= z_threshold) | (np.abs(reverse_zscore) >= z_threshold)
 
         # Exclude points where both forward and reverse derivatives are NaN
-        valid_derivatives = ~(np.isnan(forward_derivative) & np.isnan(reverse_derivative))
+        valid_derivatives = np.isfinite(forward_derivative) & np.isfinite(reverse_derivative)
 
-        # Remove the outliers and where forward_derivative is NaN or reverse_derivative is NaN
-        final_selection = ~outliers & valid_derivatives
+        # Final mask: finite derivatives and not outliers by either direction
+        final_selection = valid_derivatives & (~outliers)
 
         # Apply the final selection to keep valid points
         y = y[final_selection]
