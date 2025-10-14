@@ -547,13 +547,14 @@ def calculate_distance(row, min_distance_ft=100.0):
         # Calculate the relative azimuth between reference_geometry and the centroid line
         relative_position = determine_relative_direction(azimuth_lateral, azimuth_centroid_line)
 
-        return
-        min(filtered_distances),
-        np.median(filtered_distances),
-        max(filtered_distances),
-        np.mean(filtered_distances),
-        intersection_fraction,
-        relative_position
+        return (
+            min(filtered_distances),
+            np.median(filtered_distances),
+            max(filtered_distances),
+            np.mean(filtered_distances),
+            intersection_fraction,
+            relative_position
+        )
 
 
 # Function to determine parent-child relationship
